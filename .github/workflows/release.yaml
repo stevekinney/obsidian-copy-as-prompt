@@ -1,12 +1,18 @@
 name: release
 
 # Obsidian matches the release tag against manifest.json exactly, with no `v`
-# prefix. Tagging `v1.0.0` produces a release nobody can install, so the filter
-# below deliberately does not accept one.
+# prefix — `v1.0.0` produces a release nobody can install.
+#
+# The v-prefixed form is matched here anyway, on purpose. `bun pm version`
+# creates tags that way, so excluding it means a mistaken tag triggers nothing
+# at all and you are left wondering why. Matching it lets
+# verify-release-version fail in the first step with an explanation instead.
+# Use `bun run release <patch|minor|major>`, which tags correctly.
 on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 concurrency:
   group: release
@@ -47,7 +53,7 @@ jobs:
       # community directory looks for it, and it is the only thing that lets a
       # user check the bundle against the source.
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: main.js
 

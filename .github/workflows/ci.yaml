@@ -27,14 +27,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Includes verify:bundle, which asserts on the built main.js rather than
+      # on src/ — CommonJS, obsidian external, and no static Node or Electron
+      # require that would break the plugin on mobile.
       - name: Validate
         run: bun run validate
-
-      # The bundle is what actually ships, so assert on the bundle rather than
-      # on the source: it must be CommonJS (Obsidian's loader requires it) and
-      # must leave `obsidian` external instead of inlining a second copy.
-      - name: Check the bundle's shape
-        run: |
-          test -f main.js || { echo "main.js was not produced"; exit 1; }
-          grep -q 'require("obsidian")' main.js || { echo "obsidian is not external"; exit 1; }
-          grep -q 'module.exports' main.js || { echo "bundle is not CommonJS"; exit 1; }

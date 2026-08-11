@@ -32,12 +32,14 @@
     "lint": "oxlint --deny-warnings --type-aware --tsconfig ./tsconfig.json",
     "lint:fix": "oxlint --deny-warnings --fix --type-aware --tsconfig ./tsconfig.json",
     "prepare": "bun x lefthook install",
+    "release": "bun run scripts/release.ts",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
-    "validate": "bun run check && bun run typecheck:test && bun run test && bun run build",
+    "validate": "bun run check && bun run typecheck:test && bun run test && bun run build && bun run verify:bundle",
     "version": "bun run scripts/sync-manifest-version.ts && git add manifest.json versions.json",
+    "verify:bundle": "bun run scripts/verify-bundle.ts",
     "verify:release-version": "bun run scripts/verify-release-version.ts"
   },
   "type": "module"

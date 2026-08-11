@@ -104,15 +104,17 @@ These are the ones the community review actually enforces, and getting them wron
 Three files must agree on the version: `package.json`, `manifest.json`, and `versions.json`.
 
 ```bash
-bun pm version patch     # bumps package.json; `version` hook syncs the other two
+bun run release patch    # or minor, major, or an explicit version
 git push --follow-tags
 ```
 
-The `version` lifecycle script runs `scripts/sync-manifest-version.ts`. Pushing the tag triggers `.github/workflows/release.yaml`, which verifies consistency, runs the gate, attests build provenance, and creates a release with `main.js`, `manifest.json`, and `styles.css`.
+`scripts/release.ts` exists specifically because **`bun pm version` tags as `v1.0.0`** and Obsidian matches the release tag against `manifest.json` exactly, with no `v`. It bumps with `--no-git-tag-version` (which still fires the `version` lifecycle script, and therefore still syncs `manifest.json` and `versions.json`), then tags in the correct form. It refuses to run on a dirty tree and verifies the manifest actually moved before tagging.
+
+Pushing the tag triggers `.github/workflows/release.yaml`, which verifies consistency, runs the gate, attests build provenance, and creates a release with `main.js`, `manifest.json`, and `styles.css`.
 
 Two things will cost a release cycle if forgotten:
 
-- **Tags carry no `v` prefix.** Obsidian matches the tag against `manifest.json` exactly. `v1.0.0` produces a release nobody can install, and nothing fails until a user tries. The workflow's tag filter rejects the prefixed form, and `scripts/verify-release-version.ts` checks it explicitly and first.
+- **Tags carry no `v` prefix.** `v1.0.0` produces a release nobody can install, and nothing fails until a user tries. The workflow matches the `v` form anyway — deliberately — so `scripts/verify-release-version.ts` can fail loudly in the first step instead of the tag silently triggering nothing.
 - **A version can only be released once.** A botched release means bumping the version, not retagging.
 
 `versions.json` maps each plugin version to its `minAppVersion`, which is how users on an older Obsidian still get offered a release they can run. Bump `minAppVersion` in `manifest.json` when you start using a newer API, and the sync script records the mapping.

@@ -73,6 +73,7 @@ bun run dev          # watch build (honours OBSIDIAN_PLUGIN_DIR)
 bun run build        # production build → ./main.js
 bun test             # run tests
 bun run check        # format check + lint + typecheck
+bun run verify:bundle # assert the built main.js is shaped right
 bun run validate     # the full gate; also what pre-push runs
 ```
 
@@ -113,14 +114,14 @@ Every runtime dependency ends up in that bundle and gets downloaded by every use
 Versions live in three places that must agree: `package.json`, `manifest.json`, and `versions.json`.
 
 ```bash
-bun pm version patch     # bumps package.json, then syncs the other two
+bun run release patch    # or minor, major, or an explicit version
 git push --follow-tags
 ```
 
-Pushing the tag triggers `.github/workflows/release.yaml`, which verifies all three agree, runs the full gate, attests build provenance, and creates a GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
+> [!WARNING] Do not use `bun pm version`
+> It tags as `v1.0.0`, and Obsidian matches the release tag against `manifest.json` exactly — with no `v`. That tag produces a release nobody can install, and nothing fails until a user tries. `bun run release` bumps the version, syncs `manifest.json` and `versions.json`, and tags in the form Obsidian wants. If a `v`-prefixed tag is pushed anyway, the workflow still runs and fails immediately with an explanation rather than silently doing nothing.
 
-> [!WARNING] Tags carry no `v` prefix
-> Obsidian matches the release tag against `manifest.json` exactly. A `v1.0.0` tag produces a release nobody can install, and nothing fails until a user tries. The workflow's tag filter rejects the prefixed form on purpose, and `bun run verify:release-version` checks it explicitly.
+Pushing the tag triggers `.github/workflows/release.yaml`, which verifies all three versions agree, runs the full gate, attests build provenance, and creates a GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
 
 Republishing a version is not possible, so a botched release costs a version bump rather than a retag.
 

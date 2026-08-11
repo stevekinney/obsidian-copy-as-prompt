@@ -1,132 +1,133 @@
-# Project Name
+# Copy as Prompt
 
-## Prerequisites
+An [Obsidian](https://obsidian.md) plugin that turns a note into a prompt — resolving its wikilinks into real file paths, so the model you paste it into can go read the rest for itself.
 
-- [Bun](https://bun.sh) installed on your machine.
+## What it does
 
-## Installation
+A note that says `See [[Design]] for the limits` isn't much use pasted into a chat window: the model has no idea what `[[Design]]` is. This plugin rewrites it into something actionable, in one of two shapes.
 
-Create a new project based on this template:
+**Paths mode** targets Claude Code in a terminal. Every link becomes an `@` path:
 
-```bash
-# From the local template in ~/.bun-create/basic
-bun create basic $PROJECT_DIRECTORY
-
-# Skip installing dependencies (useful for CI or offline work)
-bun create basic $PROJECT_DIRECTORY --no-install
+```text
+See @~/Vaults/notes/Work/Design.md for the limits.
 ```
 
-If you publish this template to a GitHub repository, you can also create from
-it directly — replace `<owner>/<repo>` with your repository:
+Claude Code opens those files on demand, so the clipboard payload stays small no matter how much your notes link to. Paths with spaces are backtick-wrapped — `` `@~/Vaults/Kubernetes notes.md` `` — because bare, they parse as a path plus a stray word.
 
-```bash
-bun create github.com/<owner>/<repo> $PROJECT_DIRECTORY
-```
+> [!NOTE] Claude Code only reads inside its working directory
+> If you run it somewhere other than the vault, `/add-dir ~/Vaults` first, or switch **Path style** to vault-relative and run it from the vault root.
 
-The `--no-install` flag is helpful when:
+**Self-contained mode** targets a browser chat, where a path is a dead reference. Links collapse to their display text, `![[embeds]]` are inlined as fenced sections to a configurable depth, and images become named placeholders plus a manifest of what to attach.
 
-- Working in offline environments
-- Using CI pipelines with cached dependencies
-- You plan to modify dependencies before installation
+### What happens to each kind of link
 
-## Core Tools
+| In the note                      | Paths mode                           | Self-contained           |
+| -------------------------------- | ------------------------------------ | ------------------------ |
+| `[[Design]]`                     | `@~/…/Design.md`                     | `Design`                 |
+| `[[Design\|the contract]]`       | `@~/…/Design.md`                     | `the contract`           |
+| `[[Design#Rate limits]]`         | `@~/…/Design.md (see "Rate limits")` | `Design`                 |
+| `![[Design]]`                    | `@~/…/Design.md`                     | the note's text, inlined |
+| `![[diagram.png]]`               | `@~/…/diagram.png`                   | `[image: diagram.png]`   |
+| `[[Note never written]]`         | unchanged                            | unchanged                |
+| `[[Design]]` inside a code fence | unchanged                            | unchanged                |
 
-- Bun: runtime, bundler, test runner, and package manager
-- TypeScript: strict type checking
-- Oxlint: fast Rust-based linter
-- Prettier: formatting
-- Lefthook: Git hooks
+Unresolved links keep their `[[brackets]]` on purpose: emitting a path for a file that doesn't exist sends the model chasing something that isn't there.
+
+### Images
+
+In paths mode images are just more `@` paths — Claude Code reads image files natively. In self-contained mode they can't be inlined, so **Copy referenced images** puts the image _files_ on the clipboard and one paste attaches all of them at once. That uses a macOS pasteboard type Electron doesn't officially support for this, so the write is read back and verified; when it fails, or you're not on macOS, the command falls back to copying one image per run and tells you where it's up to.
+
+### What gets removed
+
+Frontmatter, `#tags`, `%%Obsidian comments%%`, and Dataview/Templater blocks are stripped by default, each independently toggleable. Comments matter most: they're private by convention and never render, so they're easy to forget about until one is already in a chat window.
+
+Tags and frontmatter are removed using Obsidian's metadata cache rather than pattern matching, so a `#` in a heading or a code span is never mistaken for a tag.
+
+### Where you can run it
+
+Six commands (active note and selection, in each mode; path only; referenced images), plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count — it's one keystroke from a 500-note clipboard.
+
+Paths-mode commands hide themselves on mobile, where there's no filesystem path to emit. Self-contained mode works everywhere.
 
 ## Development
 
-Start the development server:
+You need [Bun](https://bun.sh). Install dependencies with `bun install`.
+
+### Set up a development vault
+
+Never develop against your real vault — a plugin under active development can and will corrupt notes. Make an empty vault for this, then point the build at it:
 
 ```bash
+export OBSIDIAN_PLUGIN_DIR="$HOME/Vaults/dev/.obsidian/plugins/copy-as-prompt"
 bun run dev
 ```
 
-### Git Hooks (Lefthook)
+The watch build writes `main.js`, `manifest.json`, `styles.css`, and a `.hotreload` marker straight into that folder. Install [Hot-Reload](https://github.com/pjeby/hot-reload) in the dev vault and saves reload the plugin automatically; without it, toggle the plugin off and on in **Settings → Community plugins**.
 
-Lefthook is installed via the `prepare` script on `bun install`. Hook implementations live in `scripts/hooks/` and are configured in `lefthook.yml`.
+Leave `OBSIDIAN_PLUGIN_DIR` unset and the build writes to the repo root, which is what `bun run build` does for a release.
 
-- `pre-commit`: formats staged files with Prettier, runs oxlint --fix on staged files, blocks staged conflict markers, and checks that `bun.lock` is staged when `package.json` changes. Fast by design — typecheck and tests are intentionally deferred to pre-push. Skipped during merge/rebase.
-- `pre-push`: runs `bun run validate` (format check, lint, typecheck, tests, build, and package validation). This is the full gate before code leaves your machine. Skipped in CI.
-- `post-checkout`: installs deps when `bun.lock` changed; surfaces config changes.
-- `post-merge`: installs/cleans when dependencies or config changed; flags leftover conflict markers.
-
-Hooks print only when something fails, so clean commits and pushes stay quiet. Use `--no-verify` to bypass hooks (not recommended; CI will catch you anyway).
-
-### Running Tests
-
-This template uses Bun's built-in test runner with a preloaded setup file at `test/setup.ts` that resets mocks and system time after each test.
+### Commands
 
 ```bash
-bun test              # run all tests
-bun test --watch      # watch mode
-bun test --coverage   # coverage report
+bun run dev          # watch build (honours OBSIDIAN_PLUGIN_DIR)
+bun run build        # production build → ./main.js
+bun test             # run tests
+bun run check        # format check + lint + typecheck
+bun run validate     # the full gate; also what pre-push runs
 ```
 
-Coverage thresholds are configured in `bunfig.toml` under `[test]`. The default is 100% for `src/`.
+### How the code is laid out
 
-For mocking, clock control, and module mocking see the [bun:test docs](https://bun.sh/docs/test/mocks).
+The dividing line is whether a module imports `obsidian`. Those that don't are pure and hold 100% test coverage; those that do are kept as thin as possible.
 
-### Continuous Integration
+Pure, tested:
 
-A CI workflow at `.github/workflows/ci.yaml` runs `bun run validate` on every push and pull request against Node 22 (LTS) and Node 24 (latest). This includes linting, typechecking, tests, build, and package validation (`publint` + `@arethetypeswrong/cli`).
+- `prompt.ts` — template substitution and the code fence that content can't escape.
+- `edits.ts` — offset-based rewriting, applied in a single pass.
+- `cleanup.ts` — comment, Dataview, and Templater removal.
+- `paths.ts` — absolute/tilde paths and `@` reference formatting.
+- `references.ts` — the resolved-link model and how each link renders.
+- `render.ts` — assembling the final prompt in either mode.
+- `pasteboard.ts` — the macOS file-list property list.
+- `settings.ts` — shape, defaults, and per-field recovery.
 
-### Understanding `bun run` vs `bunx`
+Obsidian-facing, excluded from coverage:
 
-- **bun run**: Executes scripts defined in `package.json` or runs local TypeScript/JavaScript files directly.
-- **bun x**: Executes binaries from installed packages. For packages already in `devDependencies`, prefer `bun run <script>` or calling the binary directly rather than `bunx`, which can pull a remote version.
+- `vault.ts` — resolves links against the vault and loads embed bodies.
+- `commands.ts` — resolve, render, write, report.
+- `clipboard.ts`, `desktop.ts` — clipboard and the lazy Node/Electron boundary.
+- `main.ts`, `settings-tab.ts`, `confirm-modal.ts` — registration and UI.
 
-## Project Structure
+The interesting consequence: because links are rewritten by _character offset_ from Obsidian's metadata cache rather than by regex over the text, a `[[Wikilink]]` inside a fenced code block is left alone for free — the cache never indexed it. Keep new logic on the pure side of that line.
 
-- `src/` — Source code
-- `test/` — Test setup (`test/setup.ts` is preloaded by bun:test)
-- `scripts/hooks/` — Git hook implementations (TypeScript + Bun)
-- `scripts/setup/` — One-time `bun create` setup scripts (self-remove after first install)
-- `lefthook.yml` — Git hook configuration
+### What the bundle has to look like
 
-## Library Output
+`main.js` is a single CommonJS file. Obsidian loads it with its own loader and never reads `package.json`, so `"type": "module"` here is irrelevant to the output. `obsidian`, `electron`, the CodeMirror packages, and the Node builtins are all external. CI asserts both properties on the built file.
 
-When built, the package emits two ESM bundles:
+Node and Electron are reached through the global `require` at call time, never a static import — `manifest.json` says `isDesktopOnly: false`, and a top-level `require('electron')` would break the plugin on mobile before any platform guard could run.
 
-- `dist/node/index.js` — Node-compatible build (`Bun.build target: 'node'`)
-- `dist/bun/index.js` — Bun-optimized build (`Bun.build target: 'bun'`)
-- `dist/index.d.ts` — Shared TypeScript declarations
+Every runtime dependency ends up in that bundle and gets downloaded by every user. This plugin has none.
 
-The `package.json` `exports` map routes Bun consumers to the Bun build and Node/bundler consumers to the Node build automatically.
+## Releasing
 
-Published `src/` code must not use Bun-only runtime APIs (`Bun.file`, `Bun.serve`, etc.) — those belong in `scripts/` and tests only.
+Versions live in three places that must agree: `package.json`, `manifest.json`, and `versions.json`.
 
-## Publishing
+```bash
+bun pm version patch     # bumps package.json, then syncs the other two
+git push --follow-tags
+```
 
-Publishing is opt-in. When you're ready to publish to npm:
+Pushing the tag triggers `.github/workflows/release.yaml`, which verifies all three agree, runs the full gate, attests build provenance, and creates a GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
 
-1. Set `publishConfig` in your `package.json` as needed:
-   ```json
-   "publishConfig": { "access": "public", "provenance": true }
-   ```
-2. Tag the release: `git tag vX.Y.Z && git push --tags`
-3. The `release.yaml` workflow triggers, verifies the tag matches `package.json`, builds, validates the package exports, and publishes with npm provenance (requires `id-token: write` permission, already set in the workflow).
+> [!WARNING] Tags carry no `v` prefix
+> Obsidian matches the release tag against `manifest.json` exactly. A `v1.0.0` tag produces a release nobody can install, and nothing fails until a user tries. The workflow's tag filter rejects the prefixed form on purpose, and `bun run verify:release-version` checks it explicitly.
 
-## Customization
+Republishing a version is not possible, so a botched release costs a version bump rather than a retag.
 
-### TypeScript Configuration
+## Submitting to the community directory
 
-The base `tsconfig.json` targets ESNext with strict settings tuned for a Bun library. To add a frontend app layer:
+The repository root needs `manifest.json`, `README.md`, and `LICENSE` on the default branch, plus a release whose tag matches the manifest version with the three assets attached. Then sign in at [community.obsidian.md](https://community.obsidian.md), link your GitHub account, and add the plugin. An automated review runs against [Obsidian's plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines); addressing its feedback means publishing a new release with an incremented version.
 
-- Extend `tsconfig.json` in a new `tsconfig.frontend.json`
-- Add `"lib": ["ESNext","DOM","DOM.Iterable"]` and `"jsx": "react-jsx"` (or your framework equivalent)
+## License
 
-### Template Setup (bun-create)
-
-When using `bun create` with this template, a postinstall sequence runs once to bootstrap the project:
-
-- Sets `package.json:name` from the folder name
-- Copies `.env.example` to `.env` (or appends missing keys)
-- Writes `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` from your shell into `.env` if the values are currently empty or placeholder
-- Runs `bun run prepare` to install Lefthook hooks
-- Removes `scripts/setup/` and the `bun-create` entry from `package.json`
-
-These steps are idempotent — safe to re-run if something fails partway through.
+MIT. See [LICENSE](./LICENSE).

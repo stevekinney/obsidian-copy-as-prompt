@@ -29,7 +29,9 @@ coverage/
 # Output of 'npm pack'
 *.tgz
 
-# Build output
+# Build output — the bundle is a release asset, not a tracked file
+main.js
+main.js.map
 dist/
 build/
 
@@ -56,3 +58,6 @@ local.env
 .env
 .env.local
 .env.*.local
+
+# Obsidian plugin settings, written by the app at runtime
+data.json

@@ -15,10 +15,6 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ['22', '24']
     steps:
       - uses: actions/checkout@v7
 
@@ -26,12 +22,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           # Pinned for reproducibility; bump deliberately (or via Dependabot).
-          bun-version: 1.3.13
-
-      - name: Setup Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ matrix.node-version }}
+          bun-version: 1.3.14
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -39,12 +30,11 @@ jobs:
       - name: Validate
         run: bun run validate
 
-      # `validate` runs entirely under Bun. This step imports the emitted Node
-      # bundle under the matrix Node version so the matrix is meaningful: it
-      # catches Bun-only APIs leaking into src/ and ESM output Node cannot
-      # load. It deliberately asserts nothing about the package's exports —
-      # a smoke test naming a specific export breaks the moment you replace
-      # the scaffold's placeholder API, which `verify:scaffold` tells you to
-      # do. Add project-specific assertions here once you have real exports.
-      - name: Smoke-test Node build
-        run: node --input-type=module -e "await import('./dist/node/index.js');"
+      # The bundle is what actually ships, so assert on the bundle rather than
+      # on the source: it must be CommonJS (Obsidian's loader requires it) and
+      # must leave `obsidian` external instead of inlining a second copy.
+      - name: Check the bundle's shape
+        run: |
+          test -f main.js || { echo "main.js was not produced"; exit 1; }
+          grep -q 'require("obsidian")' main.js || { echo "obsidian is not external"; exit 1; }
+          grep -q 'module.exports' main.js || { echo "bundle is not CommonJS"; exit 1; }

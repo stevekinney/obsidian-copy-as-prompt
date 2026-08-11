@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
-    // Environment and ECMAScript features
-    "lib": ["ESNext"],
+    // Environment and ECMAScript features. Obsidian plugins run in a browser
+    // context (Electron's renderer on desktop, a WebView on mobile), so the
+    // DOM libs are required for the Obsidian API to typecheck at all.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "auto",
@@ -10,6 +12,7 @@
 
     // Module resolution
     "moduleResolution": "bundler",
+    // The Bun hook scripts under `scripts/hooks/` import each other by .ts path.
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
@@ -49,9 +52,10 @@
     // DX improvements
     "preserveWatchOutput": true,
 
-    // Type definitions
+    // Bun types cover `scripts/` and the test setup. Nothing under `src/` may
+    // use them — a Bun global in the bundle is a plugin that dies on mobile.
     "types": ["bun"]
   },
   "include": ["src", "scripts", "test"],
-  "exclude": ["node_modules", "coverage", "**/dist/**", "**/build/**"]
+  "exclude": ["node_modules", "coverage", "main.js"]
 }

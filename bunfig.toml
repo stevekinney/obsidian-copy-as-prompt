@@ -8,4 +8,20 @@ bun = true
 preload = ["./test/setup.ts"]
 coverage = true
 coverageReporter = ["text", "lcov"]
+# These modules import `obsidian`, `electron`, or the DOM clipboard — all of
+# which only exist inside the app. They cannot be exercised without mocking the
+# whole API surface, and a mock deep enough to make that meaningful would test
+# the mock. The rule is to keep real logic out of them and in the pure modules,
+# which are held at 100%: prompt, render, references, edits, cleanup, paths,
+# pasteboard, and settings.
+coveragePathIgnorePatterns = [
+  "src/main.ts",
+  "src/commands.ts",
+  "src/settings-tab.ts",
+  "src/confirm-modal.ts",
+  "src/preview-modal.ts",
+  "src/vault.ts",
+  "src/clipboard.ts",
+  "src/desktop.ts",
+]
 coverageThreshold = { line = 1.0, function = 1.0, statement = 1.0 }

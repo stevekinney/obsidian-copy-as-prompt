@@ -2,26 +2,15 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Application",
-      "type": "bun",
-      "request": "launch",
-      "program": "run",
-      "args": ["start"],
-      "internalConsoleOptions": "neverOpen",
-      "env": {
-        "NODE_ENV": "development"
-      }
-    },
-    {
-      "name": "Debug Dev (Watch)",
+      // The plugin itself runs inside Obsidian, not under Bun — to debug it,
+      // use Obsidian's developer tools (Cmd+Opt+I). These configurations cover
+      // the build and the tests, which do run under Bun.
+      "name": "Watch Build",
       "type": "bun",
       "request": "launch",
       "program": "run",
       "args": ["dev"],
-      "internalConsoleOptions": "neverOpen",
-      "env": {
-        "NODE_ENV": "development"
-      }
+      "internalConsoleOptions": "neverOpen"
     },
     {
       "name": "Debug Tests",

@@ -41,7 +41,15 @@
     "typescript/no-floating-promises": "error",
     "typescript/await-thenable": "error"
   },
-  "ignorePatterns": ["dist/**", "build/**", "coverage/**", ".bun/**", "node_modules/**", "*.lock"],
+  "ignorePatterns": [
+    "main.js",
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    ".bun/**",
+    "node_modules/**",
+    "*.lock"
+  ],
   "overrides": [
     {
       "files": ["**/*.test.ts", "**/*.spec.ts", "**/test/**/*.ts", "**/__tests__/**/*.ts"],
@@ -62,6 +70,14 @@
         "typescript/no-unused-vars": "off",
         "no-unused-vars": "off",
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["src/**/*.ts"],
+      "rules": {
+        // `new Notice(...)` is the Obsidian API for a transient message — there
+        // is no non-constructor form to assign to anything.
+        "no-new": "off"
       }
     },
     {

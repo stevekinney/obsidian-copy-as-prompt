@@ -1,0 +1,21 @@
+# Grouped weekly updates: one PR per ecosystem rather than one per package,
+# so a routine dependency bump costs a single review instead of a dozen.
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - '*'

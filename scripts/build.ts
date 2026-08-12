@@ -45,8 +45,20 @@ const watching = Bun.argv.includes('--watch');
  * Point `OBSIDIAN_PLUGIN_DIR` at `<dev vault>/.obsidian/plugins/copy-as-prompt`
  * and the watch build writes straight into the vault. Never use your real
  * vault for this.
+ *
+ * `--target-dir=<path>` (or `OBSIDIAN_PLUGIN_TARGET_DIR`) takes a *plugins*
+ * directory instead — `<vault>/.obsidian/plugins` — and the build lands in
+ * `<path>/<manifest.id>`, creating it if needed. This is how you build
+ * straight into a real vault without BRAT or a manual release download; it
+ * works with `--production` too, unlike `OBSIDIAN_PLUGIN_DIR`.
  */
-const outdir = (!production && Bun.env['OBSIDIAN_PLUGIN_DIR']) || '.';
+const targetDirFlag = Bun.argv.find((arg) => arg.startsWith('--target-dir='));
+const targetDir =
+  targetDirFlag?.slice('--target-dir='.length) || Bun.env['OBSIDIAN_PLUGIN_TARGET_DIR'];
+
+const outdir = targetDir
+  ? join(targetDir, manifest.id)
+  : (!production && Bun.env['OBSIDIAN_PLUGIN_DIR']) || '.';
 
 async function build(): Promise<boolean> {
   try {

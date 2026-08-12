@@ -57,6 +57,15 @@ BRAT reads `manifest.json` from the repo root and pulls `main.js`, `manifest.jso
 
 To install by hand instead, download those three files from the [latest release](../../releases/latest) into `<vault>/.obsidian/plugins/copy-as-prompt/` and enable the plugin.
 
+To build from source straight into a vault, point `--target-dir` (or the `OBSIDIAN_PLUGIN_TARGET_DIR` environment variable) at its `.obsidian/plugins` folder — the build lands in `<target-dir>/copy-as-prompt/`:
+
+```bash
+bun install
+bun run build -- --target-dir="$HOME/Vaults/notes/.obsidian/plugins"
+```
+
+Then enable the plugin in **Settings → Community plugins**.
+
 ## Development
 
 You need [Bun](https://bun.sh). Install dependencies with `bun install`.
@@ -73,6 +82,8 @@ bun run dev
 The watch build writes `main.js`, `manifest.json`, `styles.css`, and a `.hotreload` marker straight into that folder. Install [Hot-Reload](https://github.com/pjeby/hot-reload) in the dev vault and saves reload the plugin automatically; without it, toggle the plugin off and on in **Settings → Community plugins**.
 
 Leave `OBSIDIAN_PLUGIN_DIR` unset and the build writes to the repo root, which is what `bun run build` does for a release.
+
+`OBSIDIAN_PLUGIN_DIR` points at the plugin's own folder and only applies to `bun run dev`. `--target-dir`/`OBSIDIAN_PLUGIN_TARGET_DIR` points at the vault's `plugins` folder instead, the build appends `copy-as-prompt/` itself, and it works with `bun run build` too — that's the one to use for installing into a real vault (see [Installing](#installing)).
 
 ### Commands
 

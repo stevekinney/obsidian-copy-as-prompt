@@ -49,10 +49,11 @@ describe('reference', () => {
     expect(reference('~/Vaults/Work/Design.md')).toBe('@~/Vaults/Work/Design.md');
   });
 
-  it('wraps a path containing spaces in backticks', () => {
-    // Bare, this parses as `@~/Vaults/Work/Kubernetes` plus a stray `notes.md`.
+  it('emits a bare @path even when it contains spaces', () => {
+    // Backtick-wrapping would make Claude's @-mention parser treat this as
+    // inert code instead of a live reference, so it stays bare on purpose.
     expect(reference('~/Vaults/Work/Kubernetes notes.md')).toBe(
-      '`@~/Vaults/Work/Kubernetes notes.md`',
+      '@~/Vaults/Work/Kubernetes notes.md',
     );
   });
 });

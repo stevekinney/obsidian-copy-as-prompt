@@ -39,21 +39,6 @@ Frontmatter, `#tags`, `%%Obsidian comments%%`, and Dataview/Templater blocks are
 
 Tags and frontmatter are removed using Obsidian's metadata cache rather than pattern matching, so a `#` in a heading or a code span is never mistaken for a tag.
 
-### Copying a CLI command
-
-**Copy as CLI command** produces a ready-to-paste shell command with the note as its prompt, its frontmatter as flags, and the vault made reachable:
-
-```bash
-claude --add-dir ~/Vaults/notes --model opus --effort high 'Review this: @~/Vaults/notes/Work/Design.md'
-codex --cd ~/Vaults/notes --model opus 'Review this: @Work/Design.md'
-```
-
-The tool is a setting, not an assumption. Pick one under **Settings → CLI command → Tool** and it fills in the executable, subcommand, directory flag, forwarded frontmatter keys, path style, and the names offered by autocomplete — all of which stay editable. Claude Code, Codex, Gemini, and Copilot ship as starting points; anything else, including a wrapper script of your own, is configured through the same fields.
-
-The differences between tools are real and the profiles encode them: Claude Code's `--add-dir` grants access to a directory without moving you, so paths must be absolute; Codex's `--cd` makes the vault the working directory, so vault-relative paths are shorter and absolute ones would just repeat it.
-
-Which frontmatter keys become flags is an allowlist, because ordinary Obsidian properties like `tags` and `aliases` would otherwise become flags your tool rejects. A key set to `true` becomes a bare flag; a list repeats the flag.
-
 ### Where you can run it
 
 Four commands — copy the note, the current selection, a canvas, or just the note's path — plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count, since it's one keystroke from a 500-note clipboard.

@@ -17,13 +17,13 @@ describe('renderAsPath', () => {
     );
   });
 
-  it('emits a bare @path even when it contains spaces', () => {
+  it('double-quotes the path when it contains spaces', () => {
     const content = 'See [[Kubernetes notes]]';
     const item = refAt(content, '[[Kubernetes notes]]', {
       target: target({ displayPath: '~/Vaults/notes/Kubernetes notes.md' }),
     });
 
-    expect(renderAsPath(item)).toBe('@~/Vaults/notes/Kubernetes notes.md');
+    expect(renderAsPath(item)).toBe('@"~/Vaults/notes/Kubernetes notes.md"');
   });
 
   it('keeps a heading anchor as a hint', () => {

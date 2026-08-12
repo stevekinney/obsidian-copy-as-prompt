@@ -2,9 +2,11 @@
  * Turning vault paths into references a model can act on.
  *
  * `@` is the mention syntax coding agents share, so it is fixed rather than
- * configurable. Nothing wraps the reference in backticks: an inline code span
- * reads as inert text to Claude's `@`-mention parser, not a live reference, so
- * that would make every note title containing a space silently stop working
+ * configurable. A path containing whitespace is wrapped in double quotes:
+ * bare, `@~/Vaults/Kubernetes notes.md` parses as a path followed by a stray
+ * word. Backticks are never used for this — an inline code span reads as
+ * inert text to Claude's `@`-mention parser, not a live reference, so that
+ * would make every note title containing a space silently stop working
  * rather than merely parse imperfectly.
  */
 
@@ -56,11 +58,10 @@ export function withTilde(path: string, home: string): string {
  * Format a path as an `@` reference.
  *
  * @param path - The path to reference, already in its display form.
- * @returns The reference, always bare — see the module comment on why
- * spaces are not escaped or backtick-wrapped.
+ * @returns The reference, double-quoted if the path contains whitespace.
  */
 export function reference(path: string): string {
-  return `@${path}`;
+  return /\s/.test(path) ? `@"${path}"` : `@${path}`;
 }
 
 /**

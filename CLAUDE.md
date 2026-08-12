@@ -56,7 +56,7 @@ The dividing line is whether a module imports `obsidian`. Modules that do cannot
 - `prompt.ts` — template substitution, and a code fence that grows past any backtick run in the content so a note full of code blocks can't escape it.
 - `edits.ts` — offset-based rewriting. Every transformation is a `{start, end, replacement}` against the _original_ text, applied in one descending pass, so no edit ever sees offsets another has already shifted.
 - `cleanup.ts` — comment, Dataview, and Templater removal, as edits rather than string surgery.
-- `paths.ts` — absolute/tilde paths, and `@` reference formatting, which stays bare even when the path contains a space (backtick-wrapping would make Claude's `@`-mention parser treat it as inert code).
+- `paths.ts` — absolute/tilde paths, and `@` reference formatting, which double-quotes the path when it contains a space rather than backtick-wrapping it (that would make Claude's `@`-mention parser treat it as inert code).
 - `references.ts` — the resolved-link model and how each link renders in each mode.
 - `render.ts` — assembling the prompt, including embed recursion.
 - `pasteboard.ts` — the macOS file-list property list.

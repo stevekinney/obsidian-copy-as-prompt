@@ -12,7 +12,7 @@ It targets a coding agent in a terminal — anything that can read files off dis
 See @~/Vaults/notes/Work/Design.md for the limits.
 ```
 
-The agent opens those files on demand, so the clipboard payload stays small no matter how much your notes link to. Paths stay bare even when they contain spaces — `@~/Vaults/Kubernetes notes.md` — because wrapping them in backticks would make Claude's `@`-mention parser treat the reference as inert code instead of a live one.
+The agent opens those files on demand, so the clipboard payload stays small no matter how much your notes link to. A path containing spaces is double-quoted — `@"~/Vaults/Kubernetes notes.md"` — rather than backtick-wrapped, since an inline code span reads as inert text to Claude's `@`-mention parser instead of a live reference.
 
 > [!NOTE]
 > Agents only read inside their working directory. Point the tool at the vault, either with its directory flag (see below) or by running it from the vault root with **Path style** set to vault-relative.

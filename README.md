@@ -6,7 +6,7 @@ An [Obsidian](https://obsidian.md) plugin that turns a note into a prompt — re
 
 A note that says `See [[Design]] for the limits` isn't much use pasted into a chat window: the model has no idea what `[[Design]]` is. This plugin rewrites it into something actionable, in one of two shapes.
 
-**Paths mode** targets a coding agent in a terminal — Claude Code, Codex, Gemini, Copilot, or anything else that can read files. Every link becomes an `@` path:
+It targets a coding agent in a terminal — anything that can read files off disk. Every link becomes an `@` path:
 
 ```text
 See @~/Vaults/notes/Work/Design.md for the limits.

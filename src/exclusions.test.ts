@@ -132,3 +132,13 @@ describe('redactionEdits', () => {
     expect(redactionEdits('bbb', ['a*'])).toEqual([]);
   });
 });
+
+describe('tag rules written with a trailing slash', () => {
+  it('still matches, as the adjacent folder field does', () => {
+    // Two neighbouring settings disagreeing about a plausible typo fails open.
+    const trailing = { tags: ['#private/'], folders: [], patterns: [] };
+
+    expect(isExcluded({ path: 'a.md', tags: ['#private/health'] }, trailing)).toBe(true);
+    expect(isExcluded({ path: 'a.md', tags: ['#private'] }, trailing)).toBe(true);
+  });
+});

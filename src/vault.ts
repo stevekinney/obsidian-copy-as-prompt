@@ -81,38 +81,72 @@ export function isFileExcluded(app: App, file: TFile, rules: ExclusionRules): bo
  * The cache is what makes tag removal safe: it knows a `#tag` from a `#heading`
  * and from a `#` inside a code span, which no regex over the raw text does.
  */
+/**
+ * The frontmatter removal, if the block is still where the cache says.
+ *
+ * The cache describes the file as last parsed, and unsaved edits move
+ * everything below them. Deleting this range unchecked meant a selection from a
+ * note with unsaved frontmatter cut the wrong window and emitted the part of
+ * the block it missed.
+ */
+function frontmatterEdit(content: string, cache: CachedMetadata | null): Edit | null {
+  const position = cache?.frontmatterPosition;
+
+  if (!position) return null;
+
+  const from = position.start.offset;
+  const after = position.end.offset;
+  const block = content.slice(from, after);
+
+  if (!block.startsWith('---') || !block.trimEnd().endsWith('---')) return null;
+
+  // Take the newline after the closing `---` too, so the body doesn't start
+  // with a blank line — both halves of it on a CRLF file.
+  const end = content.startsWith('\r\n', after) ? after + 2 : after + 1;
+
+  return { start: from, end, replacement: '' };
+}
+
+/** Tag removals, skipping any whose offset no longer holds the tag. */
+function tagEdits(content: string, cache: CachedMetadata | null): Edit[] {
+  const edits: Edit[] = [];
+
+  for (const tag of cache?.tags ?? []) {
+    const { start, end } = tag.position;
+
+    if (content.slice(start.offset, end.offset) !== tag.tag) continue;
+
+    // Swallow the space *after* the tag, not the one before. Reaching backwards
+    // made this edit overlap whatever owned the preceding character, and the tag
+    // edit was the one dropped — so the tag survived. Reaching forward leaves
+    // `Shipped #work today` as `Shipped today` without a global whitespace pass
+    // that would wreck code blocks.
+    const to = content[end.offset] === ' ' ? end.offset + 1 : end.offset;
+
+    edits.push({ start: start.offset, end: to, replacement: '' });
+  }
+
+  return edits;
+}
+
+/**
+ * Edits derived from the metadata cache rather than from matching text.
+ *
+ * The cache is what makes tag removal safe: it knows a `#tag` from a `#heading`
+ * and from a `#` inside a code span, which no regex over the raw text does.
+ */
 function cacheEdits(
   content: string,
   cache: CachedMetadata | null,
   options: ResolveOptions,
 ): Edit[] {
-  const edits: Edit[] = redactionEdits(content, options.exclusions.patterns);
-  const frontmatter = cache?.frontmatterPosition;
+  const frontmatter = options.stripFrontmatter ? frontmatterEdit(content, cache) : null;
 
-  if (options.stripFrontmatter && frontmatter) {
-    // Take the newline after the closing `---` too, so the body doesn't start
-    // with a blank line — both halves of it on a CRLF file.
-    const after = frontmatter.end.offset;
-    const end = content.startsWith('\r\n', after) ? after + 2 : after + 1;
-
-    edits.push({ start: frontmatter.start.offset, end, replacement: '' });
-  }
-
-  if (options.stripTags) {
-    for (const tag of cache?.tags ?? []) {
-      // Exactly the tag's own range. Reaching back over the preceding space
-      // made this edit overlap whatever owned that character — a redaction, or
-      // the window edge of a selection — and the tag edit was the one dropped,
-      // so the tag survived. `tidy` collapses the double space instead.
-      edits.push({
-        start: tag.position.start.offset,
-        end: tag.position.end.offset,
-        replacement: '',
-      });
-    }
-  }
-
-  return edits;
+  return [
+    ...redactionEdits(content, options.exclusions.patterns),
+    ...(frontmatter ? [frontmatter] : []),
+    ...(options.stripTags ? tagEdits(content, cache) : []),
+  ];
 }
 
 function targetFor(app: App, destination: TFile, options: ResolveOptions): ResolvedTarget {

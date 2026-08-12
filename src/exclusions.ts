@@ -34,7 +34,10 @@ export type NoteIdentity = {
 export const NO_EXCLUSIONS: ExclusionRules = { tags: [], folders: [], patterns: [] };
 
 function normalizeTag(tag: string): string {
-  return tag.replace(/^#/, '').toLowerCase();
+  // The trailing slash matters: `#private/` would otherwise become `private/`
+  // and match nothing, while the adjacent Folders field tolerates exactly that
+  // typo. Two neighbouring fields disagreeing about it fails open.
+  return tag.replace(/^#/, '').replace(/\/+$/, '').toLowerCase();
 }
 
 /**

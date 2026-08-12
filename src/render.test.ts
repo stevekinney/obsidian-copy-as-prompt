@@ -143,3 +143,17 @@ describe('render with link traversal', () => {
     expect(render(notes, options({ template: '{{title}}' }))).toBe('Meeting');
   });
 });
+
+describe('render redacting its own output', () => {
+  it('redacts a pattern appearing in an emitted path', () => {
+    // Redaction over note bodies alone missed everything the renderer emits —
+    // the Source line, resolved paths, the related-notes list.
+    const result = render(
+      [note(body('Body.'), { displayPath: '~/V/Clients/Acme/Plan.md' })],
+      options({ includeHeader: true, redactPatterns: ['Acme'] }),
+    );
+
+    expect(result).not.toContain('Acme');
+    expect(result).toContain('[redacted]');
+  });
+});

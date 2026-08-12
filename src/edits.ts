@@ -38,12 +38,14 @@ function encloses(outer: Edit, inner: Edit): boolean {
  *
  * Two rules, and the order between them is the whole point.
  *
- * Containment first: an edit fully inside another is dropped, whatever its
- * priority. The container is already deleting that text, so keeping the inner
- * one instead would cancel the removal — a redaction matching a key inside a
- * frontmatter block would stop the block being stripped and emit the salary
- * next to it. Failing open on the container is far worse than the overlap this
- * priority exists for.
+ * Containment first, but only when the container *deletes*: an edit fully
+ * inside a deletion is dropped, whatever its priority, because the container
+ * removes that text anyway. A redaction matching a key inside a frontmatter
+ * block must not stop the block being stripped and emit the salary next to it.
+ *
+ * A container that replaces rather than deletes gets no such deference, because
+ * it re-emits what it covers. A wikilink rewrite spanning a redacted phrase
+ * would otherwise print that phrase back out as part of the path.
  *
  * Priority second, and only for partial overlaps: there nothing else deletes
  * the text, so a redaction that lost would leave behind exactly what it was
@@ -55,6 +57,7 @@ function withoutOverlaps(edits: readonly Edit[]): Edit[] {
       !edits.some(
         (other, otherIndex) =>
           otherIndex !== index &&
+          other.replacement === '' &&
           encloses(other, edit) &&
           // Identical ranges enclose each other; keep whichever came first.
           (!encloses(edit, other) || otherIndex < index),

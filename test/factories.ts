@@ -68,6 +68,7 @@ export function options(overrides: Partial<RenderOptions> = {}): RenderOptions {
     stripComments: true,
     stripDynamicBlocks: true,
     nameExcluded: false,
+    redactPatterns: [],
     ...overrides,
   };
 }

@@ -183,7 +183,9 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
       return;
     }
 
-    const notes = collectNotes(files);
+    // Counted after exclusion: offering "Copy 300 notes as prompt" and then
+    // saying "every selected note is excluded" is a label that lies.
+    const notes = this.copier.allowedNotes(collectNotes(files));
 
     if (notes.length === 0) return;
 

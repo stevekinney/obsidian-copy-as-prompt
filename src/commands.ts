@@ -203,6 +203,7 @@ export class PromptCopier {
       stripComments: settings.stripComments,
       stripDynamicBlocks: settings.stripDynamicBlocks,
       nameExcluded: settings.nameExcluded,
+      redactPatterns: parseLines(settings.redactPatterns),
     };
   }
 
@@ -241,6 +242,14 @@ export class PromptCopier {
     const related = notes.length - chosen;
 
     const finish = async (final: string): Promise<void> => {
+      // Also guarded here: the review modal is editable, so a select-all and
+      // delete would otherwise wipe the clipboard and report success.
+      if (final.trim().length === 0) {
+        new Notice('Nothing to copy — that came out empty');
+
+        return;
+      }
+
       const subject = chosen === 1 ? 'Copied prompt' : `Copied ${count(chosen, 'note')}`;
       const reached = related > 0 ? ` (+${count(related, 'linked note')})` : '';
 

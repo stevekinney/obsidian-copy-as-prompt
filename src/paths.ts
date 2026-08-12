@@ -25,7 +25,7 @@ export type PathStyle = 'absolute' | 'absolute-full' | 'vault-relative';
  * @returns The absolute path.
  */
 export function absolutePath(basePath: string, vaultPath: string): string {
-  return `${basePath.replace(/\/+$/, '')}/${vaultPath}`;
+  return `${basePath.replaceAll('\\', '/').replace(/\/+$/, '')}/${vaultPath}`;
 }
 
 /**
@@ -39,7 +39,10 @@ export function absolutePath(basePath: string, vaultPath: string): string {
  * @returns The path with `~` substituted when it applies.
  */
 export function withTilde(path: string, home: string): string {
-  const normalized = home.replace(/\/+$/, '');
+  // Windows hands back backslashes from both getBasePath() and homedir(), and
+  // without this the prefix never matches — so `absolute` silently degraded to
+  // a full path containing the account name this is meant to keep out.
+  const normalized = home.replaceAll('\\', '/').replace(/\/+$/, '');
 
   if (!normalized) return path;
   if (path === normalized) return '~';

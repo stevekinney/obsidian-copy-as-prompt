@@ -1,5 +1,6 @@
 import { commentEdits, dynamicBlockEdits, tidy } from './cleanup.js';
 import { applyEdits, type Edit } from './edits.js';
+import { redactionEdits } from './exclusions.js';
 import { reference } from './paths.js';
 import { buildPrompt } from './prompt.js';
 import { editFor, renderAsPath, type NoteBody } from './references.js';
@@ -20,6 +21,8 @@ export type RenderOptions = {
   stripDynamicBlocks: boolean;
   /** Whether a withheld note's path appears alongside its placeholder. */
   nameExcluded: boolean;
+  /** Redaction patterns, re-applied to the finished prompt. */
+  redactPatterns: readonly string[];
 };
 
 /** A note the impure layer has finished resolving. */
@@ -98,7 +101,7 @@ export function render(notes: RenderableNote[], options: RenderOptions): string 
 
   const single = chosen.length === 1 ? chosen[0] : undefined;
 
-  return buildPrompt(
+  const prompt = buildPrompt(
     {
       title: single?.title ?? `${chosen.length} notes`,
       path: single?.displayPath ?? '',
@@ -106,4 +109,10 @@ export function render(notes: RenderableNote[], options: RenderOptions): string 
     },
     { template: options.template, fenceContent: options.fenceContent },
   );
+
+  // Once more over the finished text. Redacting note bodies alone misses
+  // everything the renderer itself emits — the `Source:` line, resolved paths,
+  // the related-notes list — so a pattern matching a client name still shipped
+  // it inside `@~/Vaults/Clients/Acme/Plan.md`.
+  return applyEdits(prompt, redactionEdits(prompt, options.redactPatterns));
 }

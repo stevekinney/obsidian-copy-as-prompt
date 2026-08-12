@@ -86,3 +86,20 @@ describe('displayPath', () => {
     expect(displayPath('Work/Design.md', context, 'vault-relative')).toBe('Work/Design.md');
   });
 });
+
+describe('withTilde on Windows-style paths', () => {
+  it('matches when both sides use backslashes', () => {
+    // getBasePath() and homedir() both return backslashes there, and without
+    // normalizing them the prefix never matched — so the `absolute` style
+    // silently emitted the account name it exists to keep out.
+    const path = String.raw`C:\Users\steve\Vault\Note.md`.replaceAll('\\', '/');
+
+    expect(withTilde(path, String.raw`C:\Users\steve`)).toBe('~/Vault/Note.md');
+  });
+
+  it('normalizes a backslash base path when joining', () => {
+    expect(absolutePath(String.raw`C:\Users\steve\Vault`, 'Work/Design.md')).toBe(
+      'C:/Users/steve/Vault/Work/Design.md',
+    );
+  });
+});

@@ -155,7 +155,9 @@ export class CopyAsPromptSettingTab extends PluginSettingTab {
     new Setting(this.containerEl).addButton((button) =>
       button.setButtonText('Restore defaults').onClick(async () => {
         Object.assign(this.host.settings, DEFAULT_SETTINGS);
-        await this.host.saveSettings();
+        // Through persist, so a failed write is reported here too rather than
+        // reverting silently at next launch.
+        await this.persist('template', DEFAULT_SETTINGS.template);
         this.display();
       }),
     );

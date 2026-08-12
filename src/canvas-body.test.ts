@@ -103,3 +103,38 @@ describe('buildCanvasBody', () => {
     expect(buildCanvasBody([], resolve)).toEqual({ content: '', references: [], cacheEdits: [] });
   });
 });
+
+describe('wikilinks written into canvas prose', () => {
+  it('resolves links in a text card', () => {
+    // A canvas has no metadata cache, so without scanning the prose the
+    // plugin's core promise simply did not hold for text nodes.
+    const sections: CanvasSection[] = [
+      { label: null, items: [{ kind: 'text', text: 'See [[A]] here.' }] },
+    ];
+    const body = buildCanvasBody(sections, resolve);
+    const [reference] = body.references;
+
+    expect(body.content.slice(reference?.start, reference?.end)).toBe('[[A]]');
+    expect(reference?.target?.vaultPath).toBe('A');
+  });
+
+  it('resolves links in a group label', () => {
+    const sections: CanvasSection[] = [
+      { label: 'Notes about [[A]]', items: [{ kind: 'text', text: 'x' }] },
+    ];
+    const body = buildCanvasBody(sections, resolve);
+    const [reference] = body.references;
+
+    expect(body.content.slice(reference?.start, reference?.end)).toBe('[[A]]');
+  });
+
+  it('keeps an aliased or anchored link intact', () => {
+    const sections: CanvasSection[] = [
+      { label: null, items: [{ kind: 'text', text: 'See [[A#Limits|the bit]] here.' }] },
+    ];
+    const [reference] = buildCanvasBody(sections, resolve).references;
+
+    expect(reference?.original).toBe('[[A#Limits|the bit]]');
+    expect(reference?.anchor).toBe('Limits');
+  });
+});

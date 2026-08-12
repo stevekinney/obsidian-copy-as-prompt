@@ -80,19 +80,6 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
     });
 
     this.addCommand({
-      id: 'copy-canvas',
-      name: 'Copy canvas as prompt',
-      checkCallback: (checking) => {
-        const file = this.activeCanvas();
-
-        if (!file || !this.supported()) return false;
-        if (!checking) void this.copier.attempt(() => this.copier.copyCanvas(file));
-
-        return true;
-      },
-    });
-
-    this.addCommand({
       id: 'copy-selection',
       name: 'Copy selection as prompt',
       editorCheckCallback: (checking, editor: Editor, context: MarkdownFileInfo) => {
@@ -171,18 +158,6 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
   private addFileItems(menu: Menu, files: readonly TAbstractFile[]): void {
     if (!this.supported()) return;
 
-    const only = files.length === 1 ? files[0] : null;
-
-    if (only instanceof TFile && only.extension === 'canvas') {
-      this.addItem(
-        menu,
-        'Copy canvas as prompt',
-        () => void this.copier.attempt(() => this.copier.copyCanvas(only)),
-      );
-
-      return;
-    }
-
     // Counted after exclusion: offering "Copy 300 notes as prompt" and then
     // saying "every selected note is excluded" is a label that lies.
     const notes = this.copier.allowedNotes(collectNotes(files));
@@ -230,13 +205,6 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
     const file = this.app.workspace.getActiveFile();
 
     return file?.extension === 'md' ? file : null;
-  }
-
-  /** The active canvas, if one is open. */
-  private activeCanvas(): TFile | null {
-    const file = this.app.workspace.getActiveFile();
-
-    return file?.extension === 'canvas' ? file : null;
   }
 
   /** Paths need a real filesystem location, which mobile doesn't have. */

@@ -1,6 +1,7 @@
 import { Notice, type App, type Editor, type MarkdownFileInfo, type TFile } from 'obsidian';
 
 import { writeText } from './clipboard.js';
+import { mapLimited } from './concurrency.js';
 import { applyEdits } from './edits.js';
 import { describe, measure } from './estimate.js';
 import { redactionEdits, type ExclusionRules } from './exclusions.js';
@@ -12,7 +13,6 @@ import { render, type RenderableNote } from './render.js';
 import type { PluginSettings } from './settings.js';
 import {
   isFileExcluded,
-  resolveCanvas,
   resolveNote,
   resolveRelated,
   vaultContext,
@@ -73,27 +73,10 @@ export class PromptCopier {
       new Notice(`Skipped ${files.length - allowed.length} excluded of ${files.length}`);
     }
 
-    const notes = await Promise.all(allowed.map((file) => resolveNote(this.app, file, options)));
+    const notes = await mapLimited(allowed, (file) => resolveNote(this.app, file, options));
     const related = resolveRelated(this.app, allowed, options);
 
     await this.deliver([...notes, ...related]);
-  }
-
-  /** Copy a canvas: its text nodes as prose, its file nodes as paths. */
-  async copyCanvas(file: TFile): Promise<void> {
-    const options = this.resolveOptions();
-
-    if (!options || this.refuse(file, options.exclusions)) return;
-
-    const note = await resolveCanvas(this.app, file, options);
-
-    if (note.body.content.length === 0) {
-      new Notice('This canvas has nothing to copy');
-
-      return;
-    }
-
-    await this.deliver([note]);
   }
 
   /** Copy just the selected text, with its links resolved. */

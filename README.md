@@ -41,7 +41,7 @@ Tags and frontmatter are removed using Obsidian's metadata cache rather than pat
 
 ### Where you can run it
 
-Four commands — copy the note, the current selection, a canvas, or just the note's path — plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count, since it's one keystroke from a 500-note clipboard.
+Three commands — copy the note, the current selection, or just the note's path — plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count, since it's one keystroke from a 500-note clipboard.
 
 Paths need a filesystem location, so this is desktop-only in practice; the commands hide themselves on mobile rather than emitting something that looks like a path and isn't.
 
@@ -101,7 +101,7 @@ Pure, tested:
 
 Obsidian-facing, excluded from coverage:
 
-- `vault.ts` — resolves links against the vault.
+- `vault.ts` — resolves links against the vault and re-anchors stale cache offsets.
 - `commands.ts` — resolve, render, write, report.
 - `clipboard.ts`, `desktop.ts` — clipboard and the lazy Node/Electron boundary.
 - `main.ts`, `settings-tab.ts`, `confirm-modal.ts` — registration and UI.

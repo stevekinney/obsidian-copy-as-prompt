@@ -8,8 +8,6 @@ import {
   type ReferenceCache,
 } from 'obsidian';
 
-import { buildCanvasBody } from './canvas-body.js';
-import { organizeCanvas, parseCanvas } from './canvas.js';
 import { homeDirectory } from './desktop.js';
 import type { Edit } from './edits.js';
 import { isExcluded, redactionEdits, type ExclusionRules } from './exclusions.js';
@@ -367,31 +365,4 @@ export function resolveRelated(
     body: { content: '', references: [], cacheEdits: [] },
     related: true,
   }));
-}
-
-/**
- * Resolve a canvas into a note the renderer can handle.
- *
- * @param app - The Obsidian app.
- * @param file - The `.canvas` file.
- * @param options - Resolution options.
- * @returns The canvas as a single renderable note.
- */
-export async function resolveCanvas(
-  app: App,
-  file: TFile,
-  options: ResolveOptions,
-): Promise<RenderableNote> {
-  const sections = organizeCanvas(parseCanvas(await app.vault.cachedRead(file)));
-  const body = buildCanvasBody(sections, (path) => resolveTarget(app, file, path, options));
-
-  return {
-    title: file.basename,
-    vaultPath: file.path,
-    displayPath: displayPath(file.path, options.context, options.pathStyle),
-    // A canvas has no metadata cache, so redaction has to be applied to the
-    // synthesized body here — otherwise a pattern that scrubs notes silently
-    // does nothing to text typed directly onto a canvas.
-    body: { ...body, cacheEdits: redactionEdits(body.content, options.exclusions.patterns) },
-  };
 }

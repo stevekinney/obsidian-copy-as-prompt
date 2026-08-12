@@ -119,4 +119,10 @@ export function renderFileSettings(section: SettingsSection): void {
           ),
         ),
     );
+
+  section.toggle(
+    'attachImages',
+    'Offer to copy embedded images',
+    'Adds a "Copy embedded images" command and menu entry that puts a note\'s embedded images on the clipboard as files, for pasting into a chat window alongside the prompt. On macOS all of them attach at once; elsewhere they copy one at a time.',
+  );
 }

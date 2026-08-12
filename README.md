@@ -41,9 +41,11 @@ Tags and frontmatter are removed using Obsidian's metadata cache rather than pat
 
 ### Where you can run it
 
-Three commands — copy the note, the current selection, or just the note's path — plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count, since it's one keystroke from a 500-note clipboard.
+Four commands — copy the note, the current selection, just the note's path, or its embedded images — plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count, since it's one keystroke from a 500-note clipboard.
 
 Paths need a filesystem location, so this is desktop-only in practice; the commands hide themselves on mobile rather than emitting something that looks like a path and isn't.
+
+**Copy embedded images** is a separate command rather than something the note copy does automatically: the clipboard holds one payload at a time, so putting images on it would silently replace the `@` paths you just copied rather than joining them. On macOS every `![[image.png]]` a note embeds attaches at once, as files; elsewhere — and if that pasteboard write ever fails — they copy one at a time instead, and running the command again walks the rest of the set. Turn it off under **Offer to copy embedded images** in settings if you'd rather the command and menu entry not appear at all.
 
 ## Installing
 
@@ -108,6 +110,8 @@ Pure, tested:
 - `paths.ts` — absolute/tilde paths and `@` reference formatting.
 - `references.ts` — the resolved-link model and how each link renders.
 - `render.ts` — assembling the final prompt.
+- `pasteboard.ts` — the macOS file-list property list.
+- `images.ts` — which resolved references are embedded images.
 - `settings.ts` — shape, defaults, and per-field recovery.
 
 Obsidian-facing, excluded from coverage:

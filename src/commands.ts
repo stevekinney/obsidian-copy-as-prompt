@@ -1,12 +1,13 @@
-import { Notice, type App, type Editor, type MarkdownFileInfo, type TFile } from 'obsidian';
+import { Notice, TFile, type App, type Editor, type MarkdownFileInfo } from 'obsidian';
 
-import { writeText } from './clipboard.js';
+import { writeFiles, writeImage, writeText, type FileClipboardResult } from './clipboard.js';
 import { mapLimited } from './concurrency.js';
 import { applyEdits } from './edits.js';
 import { describe, measure } from './estimate.js';
 import { redactionEdits, type ExclusionRules } from './exclusions.js';
+import { embeddedImages } from './images.js';
 import { parseLines, parseList } from './list-field.js';
-import { displayPath, reference } from './paths.js';
+import { absolutePath, displayPath, reference } from './paths.js';
 import { PreviewModal } from './preview-modal.js';
 import { sliceBody } from './references.js';
 import { render, type RenderableNote } from './render.js';
@@ -19,6 +20,27 @@ import {
   type ResolveOptions,
   type VaultContext,
 } from './vault.js';
+
+/** How long an explanatory notice about the image fallback stays up. */
+const EXPLANATION_MS = 10_000;
+
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+};
+
+/** Where the one-at-a-time image fallback has got to. */
+type ImageQueue = {
+  key: string;
+  paths: string[];
+  index: number;
+};
 
 /**
  * The operations behind the commands.
@@ -35,6 +57,9 @@ export class PromptCopier {
    * is open.
    */
   private context?: VaultContext | null;
+
+  /** The set of images the one-at-a-time fallback is cycling through. */
+  private queue: ImageQueue | null = null;
 
   constructor(
     private readonly app: App,
@@ -109,6 +134,125 @@ export class PromptCopier {
     const redacted = applyEdits(path, redactionEdits(path, options.exclusions.patterns));
 
     this.report(await writeText(redacted), 'Copied path to clipboard');
+  }
+
+  /**
+   * Put a note's embedded images on the clipboard, as a companion to copying
+   * its text.
+   *
+   * The OS clipboard holds one payload at a time, so this is a separate
+   * action from the text copy rather than something bundled into it — putting
+   * files on the clipboard would silently replace whatever prompt text was
+   * just written there. On macOS every embedded image attaches at once, as
+   * files; that path is an unsupported Electron API, so the write is read
+   * back and verified rather than assumed. Elsewhere, or when the verified
+   * write fails, images copy one at a time instead, advancing a cursor so
+   * running the command again walks the rest of the set.
+   */
+  async copyEmbeddedImages(file: TFile): Promise<void> {
+    const options = this.resolveOptions();
+
+    if (!options || this.refuse(file, options.exclusions)) return;
+
+    const note = await resolveNote(this.app, file, options);
+    const paths = embeddedImages(note.body.references);
+
+    if (paths.length === 0) {
+      new Notice('This note has no embedded images');
+
+      return;
+    }
+
+    const outcome = writeFiles(
+      paths.map((vaultPath) => absolutePath(options.context.basePath, vaultPath)),
+    );
+
+    if (outcome === 'written') {
+      this.queue = null;
+      new Notice(`Copied ${count(paths.length, 'image file')} to the clipboard`);
+
+      return;
+    }
+
+    if (this.startQueue(file, paths)) this.explainImageFallback(outcome, paths.length);
+
+    await this.copyNextImage();
+  }
+
+  /**
+   * Say why images are arriving one at a time.
+   *
+   * The two reasons need different words. `unsupported` is simply how this
+   * platform works and is worth stating once so the behaviour isn't puzzling.
+   * `failed` means the macOS pasteboard write was attempted, verified, and
+   * came back empty — the breakage the read-back check exists to catch.
+   * Degrading silently there would waste the whole point of verifying it.
+   */
+  private explainImageFallback(outcome: FileClipboardResult, total: number): void {
+    if (outcome === 'failed') {
+      new Notice(
+        'Could not put the image files on the clipboard. This usually means an Obsidian or macOS update changed the pasteboard format — please report it. Copying one image at a time instead.',
+        EXPLANATION_MS,
+      );
+
+      return;
+    }
+
+    if (total > 1) {
+      new Notice(
+        `Attaching all images at once is macOS-only, so these ${total} copy one at a time.`,
+        EXPLANATION_MS,
+      );
+    }
+  }
+
+  /** Start a queue for this set of images. Returns whether it is a new one. */
+  private startQueue(file: TFile, paths: string[]): boolean {
+    const key = `${file.path}:${paths.join('|')}`;
+
+    if (this.queue?.key === key) return false;
+
+    this.queue = { key, paths, index: 0 };
+
+    return true;
+  }
+
+  /** Copy one image, advancing a cursor so repeated runs walk the whole set. */
+  private async copyNextImage(): Promise<void> {
+    if (!this.queue) return;
+
+    const { paths } = this.queue;
+    const position = this.queue.index;
+    const vaultPath = paths[position];
+    // getAbstractFileByPath rather than the newer getFileByPath, which needs
+    // Obsidian 1.13. This form works on every version, which is what keeps
+    // minAppVersion low — it is a compatibility choice, not a requirement.
+    const found = vaultPath ? this.app.vault.getAbstractFileByPath(vaultPath) : null;
+    const target = found instanceof TFile ? found : null;
+
+    if (!target) {
+      new Notice('That image is no longer in the vault');
+
+      return;
+    }
+
+    const mimeType = IMAGE_MIME_TYPES[target.extension.toLowerCase()] ?? 'image/png';
+    const written = await writeImage(await this.app.vault.readBinary(target), mimeType);
+
+    this.queue.index = (position + 1) % paths.length;
+
+    const progress = `image ${position + 1} of ${paths.length}`;
+    const more = paths.length > 1 ? ' — run again for the next' : '';
+
+    if (written) {
+      new Notice(`Copied ${progress}${more}`);
+
+      return;
+    }
+
+    new Notice(
+      `Could not copy ${target.name} — this platform may not accept ${mimeType} on the clipboard`,
+    );
   }
 
   /**

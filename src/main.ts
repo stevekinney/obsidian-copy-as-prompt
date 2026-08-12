@@ -102,6 +102,19 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
         return true;
       },
     });
+
+    this.addCommand({
+      id: 'copy-embedded-images',
+      name: 'Copy embedded images',
+      checkCallback: (checking) => {
+        const file = this.activeNote();
+
+        if (!file || !this.supported() || !this.settings.attachImages) return false;
+        if (!checking) void this.copier.attempt(() => this.copier.copyEmbeddedImages(file));
+
+        return true;
+      },
+    });
   }
 
   private registerMenus(): void {
@@ -153,6 +166,14 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
         () => void this.copier.attempt(() => this.copier.copySelection(editor, context)),
       );
     }
+
+    if (file && this.settings.attachImages) {
+      this.addItem(
+        menu,
+        'Copy embedded images',
+        () => void this.copier.attempt(() => this.copier.copyEmbeddedImages(file)),
+      );
+    }
   }
 
   private addFileItems(menu: Menu, files: readonly TAbstractFile[]): void {
@@ -169,6 +190,20 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
     const title = notes.length === 1 ? 'Copy as prompt' : `Copy ${notes.length} notes as prompt`;
 
     this.addItem(menu, title, () => this.copyNotes(notes));
+
+    // Embedded images are gathered per note, so the entry only makes sense for
+    // a single file — a multi-note selection keeps just the text copy above.
+    if (notes.length === 1 && this.settings.attachImages) {
+      const [note] = notes;
+
+      if (note) {
+        this.addItem(
+          menu,
+          'Copy embedded images',
+          () => void this.copier.attempt(() => this.copier.copyEmbeddedImages(note)),
+        );
+      }
+    }
   }
 
   /**

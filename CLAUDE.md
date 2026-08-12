@@ -60,6 +60,7 @@ The dividing line is whether a module imports `obsidian`. Modules that do cannot
 - `references.ts` — the resolved-link model and how each link renders in each mode.
 - `render.ts` — assembling the prompt, including embed recursion.
 - `pasteboard.ts` — the macOS file-list property list.
+- `images.ts` — which of a note's resolved references are embedded images, from `NoteReference.original` alone.
 - `settings.ts` — shape, defaults, and per-field recovery.
 
 `bunfig.toml` excludes the Obsidian-facing modules from coverage and holds the rest at 100%. **When adding a feature, put the logic on the pure side of that line.** If `commands.ts` or `main.ts` is growing branches, that is the signal to extract.

@@ -48,6 +48,8 @@ export type PluginSettings = {
   nameExcluded: boolean;
   /** Override the vault location that emitted paths are built from. */
   pathPrefix: string;
+  /** Whether the "Copy embedded images" command is offered at all. */
+  attachImages: boolean;
 };
 
 /** When the review modal appears. */
@@ -74,6 +76,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   previewThreshold: 8000,
   nameExcluded: false,
   pathPrefix: '',
+  attachImages: true,
 };
 
 /**
@@ -179,6 +182,7 @@ export function parseSettings(source: unknown): PluginSettings {
     previewThreshold: counted('previewThreshold', Number.MAX_SAFE_INTEGER),
     nameExcluded: boolean('nameExcluded'),
     pathPrefix: text('pathPrefix'),
+    attachImages: boolean('attachImages'),
   };
 }
 

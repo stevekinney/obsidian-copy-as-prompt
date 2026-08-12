@@ -91,4 +91,12 @@ describe('parseSettings migration and new fields', () => {
   it('defaults to withholding the name of an excluded note', () => {
     expect(parseSettings({}).nameExcluded).toBe(false);
   });
+
+  it('defaults to offering the embedded-images command', () => {
+    expect(parseSettings({}).attachImages).toBe(true);
+  });
+
+  it('keeps attachImages turned off once a user disables it', () => {
+    expect(parseSettings({ attachImages: false }).attachImages).toBe(false);
+  });
 });

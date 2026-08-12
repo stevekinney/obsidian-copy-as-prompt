@@ -13,19 +13,36 @@ describe('commentEdits', () => {
     expect(strip(source, commentEdits(source))).toBe('Ship it  today');
   });
 
-  it('removes a comment spanning lines, taking its trailing newline', () => {
+  it('removes a comment spanning lines', () => {
     const source = 'Before\n%%\nprivate\nthinking\n%%\nAfter';
-    expect(strip(source, commentEdits(source))).toBe('Before\nAfter');
+    expect(strip(source, commentEdits(source))).toBe('Before\n\nAfter');
   });
 
-  it('does not let a stray %% pair with a later comment', () => {
-    // The permissive form deleted everything between a stray delimiter and the
-    // *opening* of a real comment, then emitted the comment's text.
-    const source = 'printf("100%%\\n");\n\nConfidential paragraph.\n\n%%private note%%';
+  it('removes a comment with text on its delimiter lines', () => {
+    // `%%` is a toggle, so this is a legal comment. Narrower rules that require
+    // same-line or alone-on-a-line delimiters leak this form into the prompt.
+    const source = 'Plan.\n\n%% do not send: laid off Bob,\nseverance 40k %%\n\nEnd.';
     const result = strip(source, commentEdits(source));
 
-    expect(result).toContain('Confidential paragraph.');
-    expect(result).not.toContain('private note');
+    expect(result).not.toContain('laid off Bob');
+    expect(result).not.toContain('severance');
+  });
+
+  it('pairs delimiters the way Obsidian toggles them', () => {
+    // An odd number of delimiters means the note is malformed, and Obsidian
+    // renders it this way too: the stray pairs with the next one, so the text
+    // between disappears and the following comment body becomes visible. This
+    // matches the preview rather than inventing a safer-looking rule that would
+    // leak every comment with text on its delimiter line.
+    const source = 'Half off 50%% today.\n\n%%private note%%';
+
+    expect(strip(source, commentEdits(source))).toBe('Half off 50private note%%');
+  });
+
+  it('removes both comments when the delimiters balance', () => {
+    const source = 'a %%one%% b %%two%% c';
+
+    expect(strip(source, commentEdits(source))).toBe('a  b  c');
   });
 
   it('pairs delimiters rather than swallowing everything between the first and last', () => {
@@ -101,12 +118,16 @@ describe('tidy', () => {
     expect(tidy('\n\n  Body  \n\n')).toBe('Body');
   });
 
-  it('collapses blank runs written with CRLF', () => {
-    expect(tidy('A\r\n\r\n\r\n\r\nB')).toBe('A\n\nB');
+  it('leaves multiple spaces inside a code fence alone', () => {
+    // Whitespace is load-bearing in diffs and string literals, and tidy runs
+    // over the whole rendered body with no notion of a fence.
+    const fenced = '```diff\n- def a():\n-     return 1\n```';
+
+    expect(tidy(fenced)).toBe(fenced);
   });
 
-  it('collapses the double space a removed tag leaves mid-sentence', () => {
-    expect(tidy('Shipped  today')).toBe('Shipped today');
+  it('collapses blank runs written with CRLF', () => {
+    expect(tidy('A\r\n\r\n\r\n\r\nB')).toBe('A\n\nB');
   });
 
   it('preserves a single blank line between paragraphs', () => {

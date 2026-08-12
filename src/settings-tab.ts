@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting, type Plugin } from 'obsidian';
+import { Notice, PluginSettingTab, Setting, type Plugin } from 'obsidian';
 
 import {
   DEFAULT_SETTINGS,
@@ -52,7 +52,17 @@ export class CopyAsPromptSettingTab extends PluginSettingTab {
     value: PluginSettings[K],
   ): Promise<void> {
     this.host.settings[key] = value;
-    await this.host.saveSettings();
+
+    try {
+      await this.host.saveSettings();
+    } catch (error) {
+      // The in-memory assignment above already took effect, so without this the
+      // setting works perfectly all session and is silently gone after restart.
+      // For an exclusion or redaction rule that is the worst possible outcome.
+      const detail = error instanceof Error ? error.message : String(error);
+
+      new Notice(`Could not save settings: ${detail}`);
+    }
   }
 
   /** The plumbing every section shares. */

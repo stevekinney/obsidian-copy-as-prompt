@@ -154,15 +154,29 @@ function resolveReference(
   };
 }
 
-async function resolveBody(app: App, file: TFile, options: ResolveOptions): Promise<NoteBody> {
+async function resolveBody(
+  app: App,
+  file: TFile,
+  options: ResolveOptions,
+  override?: string,
+): Promise<NoteBody> {
   // `cachedRead` is the right call for read-only access — it serves the parsed
-  // contents instead of hitting disk again.
-  const content = await app.vault.cachedRead(file);
+  // contents instead of hitting disk again. `override` carries the editor's
+  // live buffer, which is ahead of disk whenever there are unsaved edits.
+  const content = override ?? (await app.vault.cachedRead(file));
   const cache = app.metadataCache.getFileCache(file);
 
   // Links and embeds render identically, so they need no distinction here.
   const items = [...(cache?.links ?? []), ...(cache?.embeds ?? [])];
-  const references = items.map((item) => resolveReference(app, file, item, options));
+
+  const references = items
+    .map((item) => resolveReference(app, file, item, options))
+    // Every offset in this pipeline comes from the metadata cache, which
+    // describes the file as last parsed. Unsaved edits above a link move it,
+    // and rewriting at a stale offset corrupts whatever now sits there. If the
+    // text at the offset is not what the cache said it was, the reference is
+    // dropped rather than trusted.
+    .filter((item) => content.slice(item.start, item.end) === item.original);
 
   return { content, references, cacheEdits: cacheEdits(content, cache, options) };
 }
@@ -173,18 +187,20 @@ async function resolveBody(app: App, file: TFile, options: ResolveOptions): Prom
  * @param app - The Obsidian app.
  * @param file - The note to resolve.
  * @param options - Path style, cleanup toggles, and exclusions.
+ * @param override - Text to use instead of the file on disk, for a live editor.
  * @returns The note and its resolved references.
  */
 export async function resolveNote(
   app: App,
   file: TFile,
   options: ResolveOptions,
+  override?: string,
 ): Promise<RenderableNote> {
   return {
     title: file.basename,
     vaultPath: file.path,
     displayPath: displayPath(file.path, options.context, options.pathStyle),
-    body: await resolveBody(app, file, options),
+    body: await resolveBody(app, file, options, override),
   };
 }
 

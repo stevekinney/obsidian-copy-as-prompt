@@ -86,7 +86,7 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
         const file = this.activeCanvas();
 
         if (!file || !this.supported()) return false;
-        if (!checking) void this.copier.copyCanvas(file);
+        if (!checking) void this.copier.attempt(() => this.copier.copyCanvas(file));
 
         return true;
       },
@@ -97,7 +97,7 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
       name: 'Copy selection as prompt',
       editorCheckCallback: (checking, editor: Editor, context: MarkdownFileInfo) => {
         if (!editor.somethingSelected() || !this.supported()) return false;
-        if (!checking) void this.copier.copySelection(editor, context);
+        if (!checking) void this.copier.attempt(() => this.copier.copySelection(editor, context));
 
         return true;
       },
@@ -110,7 +110,7 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
         const file = this.activeNote();
 
         if (!file || !this.supported()) return false;
-        if (!checking) void this.copier.copyPath(file);
+        if (!checking) void this.copier.attempt(() => this.copier.copyPath(file));
 
         return true;
       },
@@ -163,7 +163,7 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
       this.addItem(
         menu,
         'Copy selection as prompt',
-        () => void this.copier.copySelection(editor, context),
+        () => void this.copier.attempt(() => this.copier.copySelection(editor, context)),
       );
     }
   }
@@ -174,7 +174,11 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
     const only = files.length === 1 ? files[0] : null;
 
     if (only instanceof TFile && only.extension === 'canvas') {
-      this.addItem(menu, 'Copy canvas as prompt', () => void this.copier.copyCanvas(only));
+      this.addItem(
+        menu,
+        'Copy canvas as prompt',
+        () => void this.copier.attempt(() => this.copier.copyCanvas(only)),
+      );
 
       return;
     }
@@ -197,16 +201,16 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
    * notes, which is occasionally intended and usually a misclick.
    */
   private copyNotes(notes: TFile[]): void {
-    const run = (): void => void this.copier.copyNotes(notes);
+    const run = (): void => void this.copier.attempt(() => this.copier.copyNotes(notes));
     // Count what will actually be copied. Counting the file tree instead meant
     // asking "copy 300 notes?" and then copying the 10 that survived exclusion.
     const allowed = this.copier.allowedNotes(notes);
 
-    // The review modal already shows exactly what is about to be copied, so
-    // asking first would be two dialogs for one action.
-    const reviewing = this.settings.previewMode === 'always';
-
-    if (reviewing || allowed.length <= this.settings.folderNoteLimit) {
+    // Deliberately not skipped when review is on. The review modal appears
+    // *after* every note has been read and concatenated, so it is not a
+    // substitute for a guard that runs before that work — skipping it left the
+    // most cautious setting with no protection at all.
+    if (allowed.length <= this.settings.folderNoteLimit) {
       run();
 
       return;

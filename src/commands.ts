@@ -102,7 +102,10 @@ export class PromptCopier {
 
     if (!file || !options || this.refuse(file, options.exclusions)) return;
 
-    const note = await resolveNote(this.app, file, options);
+    // The editor's buffer, not the file: `posToOffset` indexes the live text,
+    // and Obsidian only autosaves a couple of seconds after you stop typing. On
+    // disk content those offsets address the wrong window entirely.
+    const note = await resolveNote(this.app, file, options, editor.getValue());
     const from = editor.posToOffset(editor.getCursor('from'));
     const to = editor.posToOffset(editor.getCursor('to'));
 
@@ -203,9 +206,37 @@ export class PromptCopier {
     };
   }
 
+  /**
+   * Run an operation, surfacing a failure instead of swallowing it.
+   *
+   * Without this a rejected read — a note deleted or renamed between the menu
+   * being built and clicked — produced no notice, no clipboard write, and no
+   * visible change. The clipboard kept its previous contents, so the next paste
+   * quietly delivered the *last* copy.
+   */
+  async attempt(work: () => Promise<void>): Promise<void> {
+    try {
+      await work();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+
+      new Notice(`Copy as prompt failed: ${detail}`);
+    }
+  }
+
   /** Render, optionally show it for review, then copy. */
   private async deliver(notes: RenderableNote[]): Promise<void> {
     const text = render(notes, this.renderOptions());
+
+    // An empty write clears the clipboard and reports success, which destroys
+    // whatever was there and looks identical to having worked.
+    if (text.trim().length === 0) {
+      new Notice('Nothing to copy — that came out empty');
+
+      return;
+    }
+
+    this.warnAboutTemplate(notes);
     const chosen = notes.filter((note) => !note.related).length;
     const related = notes.length - chosen;
 
@@ -229,6 +260,21 @@ export class PromptCopier {
     }
 
     new PreviewModal(this.app, text, describe(size), (edited) => void finish(edited)).open();
+  }
+
+  /**
+   * Say so when a template asks for something a multi-note copy cannot give.
+   *
+   * `{{path}}` has no single value for a set, so it renders empty and a
+   * template reading "Review the note at {{path}}:" silently becomes "Review
+   * the note at :".
+   */
+  private warnAboutTemplate(notes: RenderableNote[]): void {
+    const chosen = notes.filter((note) => !note.related).length;
+
+    if (chosen < 2 || !this.settings().template.includes('{{path}}')) return;
+
+    new Notice(`Your template uses {{path}}, which has no single value for ${chosen} notes.`);
   }
 
   private report(ok: boolean, success: string): void {

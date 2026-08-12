@@ -88,3 +88,60 @@ describe('rebaseEdits', () => {
     expect(rebaseEdits(edits, 21, 29)).toEqual([]);
   });
 });
+
+describe('applyEdits with priority', () => {
+  it('lets a container win over a higher-priority edit inside it', () => {
+    // A redaction matching a key inside a frontmatter block must not cancel the
+    // removal of that block — doing so emitted the whole block with one word
+    // swapped, which is the opposite of what either edit wanted.
+    const source = '---\nkey: SECRET\nsalary: 250000\n---\nBody.';
+    const frontmatter = { start: 0, end: source.indexOf('Body.'), replacement: '' };
+    const redaction = {
+      start: source.indexOf('SECRET'),
+      end: source.indexOf('SECRET') + 6,
+      replacement: '[redacted]',
+      priority: 1,
+    };
+
+    expect(applyEdits(source, [frontmatter, redaction])).toBe('Body.');
+  });
+
+  it('lets a higher-priority edit win a partial overlap', () => {
+    // Nothing else deletes this text, so losing here would leave behind exactly
+    // what the redaction existed to remove.
+    const source = 'Mail bob@example.com now';
+    const link = { start: 0, end: 9, replacement: 'LINK' };
+    const redaction = { start: 5, end: 20, replacement: '[redacted]', priority: 1 };
+
+    expect(applyEdits(source, [link, redaction])).toBe('Mail [redacted] now');
+  });
+
+  it('still resolves equal-priority overlaps outermost-first', () => {
+    const source = 'one two three';
+
+    expect(
+      applyEdits(source, [
+        { start: 4, end: 7, replacement: 'inner' },
+        { start: 0, end: 13, replacement: 'outer' },
+      ]),
+    ).toBe('outer');
+  });
+});
+
+describe('rebaseEdits with priority', () => {
+  it('clips a straddling redaction instead of dropping it', () => {
+    // Dropping it meant "copy selection" failed open on the one control the
+    // rest of this work was hardening.
+    const redaction = { start: 4, end: 26, replacement: '[redacted]', priority: 1 };
+
+    expect(rebaseEdits([redaction], 8, 30)).toEqual([
+      { start: 0, end: 18, replacement: '[redacted]', priority: 1 },
+    ]);
+  });
+
+  it('still drops a straddling replacement that would break syntax', () => {
+    const link = { start: 4, end: 26, replacement: '@path' };
+
+    expect(rebaseEdits([link], 8, 30)).toEqual([]);
+  });
+});

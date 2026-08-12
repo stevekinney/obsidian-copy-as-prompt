@@ -10,18 +10,17 @@ import type { Edit } from './edits.js';
  * regex would.
  */
 
-// `%%…%%`. Obsidian's comment syntax. These are private by convention — the
-// whole point is that they never render — so leaking one into a prompt is the
-// kind of thing you notice after sending.
+// `%%…%%`. Obsidian's comment syntax, which is a *toggle*: each delimiter
+// flips visibility, so comments are the odd-numbered spans and text may sit on
+// the same line as either delimiter. This pattern reproduces that pairing.
 //
-// Deliberately two narrow patterns rather than one permissive `%%[\s\S]*?%%`.
-// That form pairs any stray `%%` with the *opening* delimiter of a real comment
-// later in the note, which deletes everything in between and then emits the
-// comment's text — the exact inversion of the setting. `printf("100%%\n")` is
-// enough to trigger it. An inline comment must open and close on one line; a
-// block comment must have its delimiters alone on their own lines.
-const COMMENT_INLINE = /%%[^\n]*?%%/g;
-const COMMENT_BLOCK = /^[ \t]*%%[ \t]*\r?\n[\s\S]*?^[ \t]*%%[ \t]*$/gm;
+// It over-deletes when a note contains a stray `%%` — `printf("100%%")` pairs
+// with the next comment's opening delimiter and takes the text between with it.
+// That is the deliberate direction to fail in. Narrower rules that only match
+// same-line or delimiters-alone-on-a-line comments leak every other legal form
+// straight into the prompt, and the entire point of the setting is that these
+// never leave the vault. Losing a paragraph is recoverable; leaking one is not.
+const COMMENT = /%%[\s\S]*?%%/g;
 
 // ```dataview / ```dataviewjs fenced blocks. They paste as raw query source,
 // which a model will earnestly try to read as content.
@@ -29,11 +28,11 @@ const DATAVIEW_BLOCK = /^[ \t]*```dataview(?:js)?\b[\s\S]*?^[ \t]*```[ \t]*$/gm;
 
 // Inline dataview: `= this.file.name` and `$= dv.current()`.
 //
-// The whitespace after `=` is doing real work. Without it this matched any code
-// span starting with `=` and silently deleted `` `=>` ``, `` `=SUM(A1:A9)` ``,
-// and `` `=== ` ``. Missing a space-less `` `=this.file` `` is a far better
-// failure than eating someone's spreadsheet formula.
-const DATAVIEW_INLINE = /`[$]?=\s[^`\n]*`/g;
+// What follows `=` is doing real work. Matching any code span starting with
+// `=` silently deleted `` `=>` ``, `` `=SUM(A1:A9)` ``, and `` `=== ` ``.
+// Requiring whitespace fixed that but missed `` `=this.file.name` ``, which is
+// Dataview's own documented form, so the two known prefixes are allowed too.
+const DATAVIEW_INLINE = /`[$]?=(?:\s|this\.|dv\.)[^`\n]*`/g;
 
 // Templater: `<% … %>` and `<%* … %>`.
 const TEMPLATER = /<%[\s\S]*?%>/g;
@@ -60,7 +59,7 @@ function editsFor(source: string, pattern: RegExp, trailingNewline: boolean): Ed
 
 /** Edits removing every `%%Obsidian comment%%`. */
 export function commentEdits(source: string): Edit[] {
-  return [...editsFor(source, COMMENT_BLOCK, true), ...editsFor(source, COMMENT_INLINE, false)];
+  return editsFor(source, COMMENT, false);
 }
 
 /** Edits removing Dataview blocks, inline Dataview, and Templater expressions. */
@@ -86,10 +85,11 @@ export function tidy(source: string): string {
   return (
     source
       .replace(/[ \t]+$/gm, '')
-      // Removing a mid-sentence tag leaves a double space. Markdown collapses
-      // runs of spaces anyway, and this is what lets tag removal keep to its own
-      // exact range instead of reaching backwards into another edit's territory.
-      .replace(/([^\s])[ \t]{2,}(?=\S)/g, '$1 ')
+      // No run-of-spaces collapse here. It looks harmless — Markdown folds
+      // whitespace in prose — but this runs over the whole rendered body, and
+      // the places multiple spaces are load-bearing are exactly code fences,
+      // diffs, and string literals. Tag removal takes its own trailing space
+      // instead, which needs no global pass.
       .replace(/(?:\r?\n){3,}/g, '\n\n')
       .trim()
   );

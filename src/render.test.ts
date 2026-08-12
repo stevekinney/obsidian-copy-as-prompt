@@ -65,7 +65,7 @@ describe('render cleanup', () => {
   it('strips comments and dynamic blocks by default', () => {
     const content = 'Keep %%drop this%% and\n\n```dataview\nTABLE x\n```\nkeep too.';
 
-    expect(render([note(body(content))], options())).toBe('Keep and\n\nkeep too.');
+    expect(render([note(body(content))], options())).toBe('Keep  and\n\nkeep too.');
   });
 
   it('leaves them alone when both toggles are off', () => {

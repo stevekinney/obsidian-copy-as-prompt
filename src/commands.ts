@@ -1,8 +1,9 @@
 import { Notice, type App, type Editor, type MarkdownFileInfo, type TFile } from 'obsidian';
 
 import { writeText } from './clipboard.js';
+import { applyEdits } from './edits.js';
 import { describe, measure } from './estimate.js';
-import type { ExclusionRules } from './exclusions.js';
+import { redactionEdits, type ExclusionRules } from './exclusions.js';
 import { parseLines, parseList } from './list-field.js';
 import { displayPath, reference } from './paths.js';
 import { PreviewModal } from './preview-modal.js';
@@ -118,9 +119,13 @@ export class PromptCopier {
 
     if (!options || this.refuse(file, options.exclusions)) return;
 
-    const path = displayPath(file.path, options.context, options.pathStyle);
+    const path = reference(displayPath(file.path, options.context, options.pathStyle));
+    // Every other command ends up in render(), which re-applies redaction to the
+    // finished prompt. This one emits a path directly, so a pattern matching a
+    // client or codename was applied on four commands and silently not the fifth.
+    const redacted = applyEdits(path, redactionEdits(path, options.exclusions.patterns));
 
-    this.report(await writeText(reference(path)), 'Copied path to clipboard');
+    this.report(await writeText(redacted), 'Copied path to clipboard');
   }
 
   /**
@@ -257,7 +262,8 @@ export class PromptCopier {
     };
 
     const settings = this.settings();
-    const size = measure(text, notes.length);
+    // Chosen notes only: a related note contributes one bullet, not a body.
+    const size = measure(text, chosen);
     const wanted =
       settings.previewMode === 'always' ||
       (settings.previewMode === 'large' && size.tokens >= settings.previewThreshold);
@@ -279,9 +285,18 @@ export class PromptCopier {
    * the note at :".
    */
   private warnAboutTemplate(notes: RenderableNote[]): void {
+    const { template } = this.settings();
+
+    // A typo like {{contents}} or {{ content }} substitutes nothing, so the
+    // note silently does not travel — and the emptiness guard passes, because
+    // the instructions themselves are not empty.
+    if (!template.includes('{{content}}')) {
+      new Notice('Your template has no {{content}}, so the note itself was not included.');
+    }
+
     const chosen = notes.filter((note) => !note.related).length;
 
-    if (chosen < 2 || !this.settings().template.includes('{{path}}')) return;
+    if (chosen < 2 || !template.includes('{{path}}')) return;
 
     new Notice(`Your template uses {{path}}, which has no single value for ${chosen} notes.`);
   }

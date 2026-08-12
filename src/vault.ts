@@ -15,6 +15,7 @@ import type { Edit } from './edits.js';
 import { isExcluded, redactionEdits, type ExclusionRules } from './exclusions.js';
 import { displayPath, type PathStyle } from './paths.js';
 import type { NoteBody, NoteReference, ResolvedTarget } from './references.js';
+import { scanWikilinks } from './wikilinks.js';
 import type { RenderableNote } from './render.js';
 
 /**
@@ -203,14 +204,20 @@ async function resolveBody(
   // Links and embeds render identically, so they need no distinction here.
   const items = [...(cache?.links ?? []), ...(cache?.embeds ?? [])];
 
-  const references = items
-    .map((item) => resolveReference(app, file, item, options))
-    // Every offset in this pipeline comes from the metadata cache, which
-    // describes the file as last parsed. Unsaved edits above a link move it,
-    // and rewriting at a stale offset corrupts whatever now sits there. If the
-    // text at the offset is not what the cache said it was, the reference is
-    // dropped rather than trusted.
-    .filter((item) => content.slice(item.start, item.end) === item.original);
+  const cached = items.map((item) => resolveReference(app, file, item, options));
+
+  // Every offset here comes from the metadata cache, which describes the file
+  // as last parsed. Unsaved edits above a link move it, and rewriting at a
+  // stale offset corrupts whatever now sits there.
+  const stale = cached.some((item) => content.slice(item.start, item.end) !== item.original);
+
+  // Dropping the stale ones was the obvious response and the wrong one: a link
+  // left untouched prints its target's filename, and for an excluded note that
+  // is exactly what `[excluded]` exists to withhold. Rescanning finds them
+  // where they actually are, at the cost of also matching inside code fences.
+  const references = stale
+    ? scanWikilinks(content, 0, (linkpath) => resolveTarget(app, file, linkpath, options))
+    : cached;
 
   return { content, references, cacheEdits: cacheEdits(content, cache, options) };
 }

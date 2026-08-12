@@ -88,12 +88,24 @@ describe('sliceBody', () => {
     expect(sliced.references[1]?.start).toBe(18);
   });
 
-  it('drops a reference the selection only partly covers', () => {
-    // Half-rewriting a link would emit broken wikilink syntax.
+  it('clips a reference the selection only partly covers', () => {
+    // Dropping it left the raw wikilink in the slice, and for a link to an
+    // excluded note that text is the filename the placeholder exists to hide.
     const sliced = sliceBody(full, 10, 34);
 
-    expect(sliced.references).toHaveLength(1);
-    expect(sliced.references[0]?.start).toBe(14);
+    expect(sliced.references).toHaveLength(2);
+    expect(sliced.references[0]).toMatchObject({ start: 0, end: 6 });
+    expect(sliced.references[1]?.start).toBe(14);
+  });
+
+  it('replaces a half-selected link to an excluded note with the placeholder', () => {
+    const sensitive = 'Talked to my [[Divorce lawyer]] today.';
+    const item = refAt(sensitive, '[[Divorce lawyer]]', {
+      target: target({ vaultPath: 'Personal/Divorce lawyer.md', excluded: true }),
+    });
+    const sliced = sliceBody({ content: sensitive, references: [item], cacheEdits: [] }, 20, 37);
+
+    expect(renderAsPath(sliced.references[0]!)).toBe('[excluded]');
   });
 
   it('rebases cache edits along with the references', () => {

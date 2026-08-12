@@ -97,9 +97,12 @@ export function editFor(item: NoteReference, replacement: string): Edit {
  * Narrow a body to a character range, keeping only whole references.
  *
  * The "copy selection" command works on a slice of the note, but everything the
- * metadata cache reports is positioned against the whole file. A link the user
- * only half-selected is dropped rather than half-rewritten, which would emit
- * broken wikilink syntax.
+ * metadata cache reports is positioned against the whole file.
+ *
+ * A half-selected link is clipped, not dropped. Dropping it leaves the raw
+ * `[[wikilink]]` text in the slice, and when that link points at an excluded
+ * note the text is the filename `[excluded]` exists to withhold — so a partial
+ * selection walked straight past the placeholder.
  *
  * @param body - The full note body.
  * @param start - Selection start offset.
@@ -110,8 +113,12 @@ export function sliceBody(body: NoteBody, start: number, end: number): NoteBody 
   return {
     content: body.content.slice(start, end),
     references: body.references
-      .filter((item) => item.start >= start && item.end <= end)
-      .map((item) => ({ ...item, start: item.start - start, end: item.end - start })),
+      .filter((item) => item.end > start && item.start < end)
+      .map((item) => ({
+        ...item,
+        start: Math.max(item.start, start) - start,
+        end: Math.min(item.end, end) - start,
+      })),
     cacheEdits: rebaseEdits(body.cacheEdits, start, end),
   };
 }

@@ -152,79 +152,152 @@ describe('rebaseEdits with priority', () => {
 /**
  * Deterministic pseudo-random source, so a failure is reproducible.
  *
- * This exists because ranking edits against each other leaked four times in a
- * row, each time in a shape no hand-written example had covered. The property
- * is the thing that actually matters: text a redaction or a deletion covers
- * must not survive, whatever else is going on around it.
+ * `Math.imul` and the unsigned shift keep this inside 32 bits. The obvious
+ * `state * 1103515245 + 12345` overflows 2^53, the low bits collapse to zero
+ * within a few iterations, and the generator quietly stops generating: an
+ * earlier version of this test produced a single edit in 99.6% of rounds, so
+ * the property guarding *interaction between* edits almost never saw two.
+ * `generates overlapping sets often enough to matter` exists to catch that
+ * happening again — a fuzz test that stops fuzzing is worse than none.
  */
-function* randomEdits(seed: number): Generator<Edit[]> {
-  let state = seed;
-  const next = (bound: number): number => {
-    state = (state * 1103515245 + 12345) % 2147483648;
+function makeRandom(seed: number): (bound: number) => number {
+  let state = seed >>> 0;
 
-    return state % bound;
+  return (bound) => {
+    state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+
+    return Math.floor((state / 4294967296) * bound);
   };
-
-  for (let round = 0; round < 4000; round += 1) {
-    const count = 1 + next(4);
-    const edits: Edit[] = [];
-
-    for (let index = 0; index < count; index += 1) {
-      const start = next(26);
-      const end = Math.min(26, start + 1 + next(12));
-      const kind = next(3);
-
-      edits.push(
-        kind === 0
-          ? { start, end, replacement: '' }
-          : kind === 1
-            ? { start, end, replacement: '#', priority: 1 }
-            : { start, end, replacement: '@' },
-      );
-    }
-
-    yield edits;
-  }
 }
 
 const SOURCE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+// Deliberately letter-free: a marker containing a letter from SOURCE would
+// make the leak check see its own replacement text and report a false failure.
+const MARKERS = /<1>|<2>/g;
 
-describe('applyEdits invariants under random input', () => {
-  it('never leaves text a redaction or deletion covered', () => {
-    for (const edits of randomEdits(7)) {
+/** Random deletions and redactions, whose result is exactly predictable. */
+function removalSets(seed: number, rounds = 20_000): Edit[][] {
+  const next = makeRandom(seed);
+
+  return Array.from({ length: rounds }, () => {
+    const count = 1 + next(4);
+
+    return Array.from({ length: count }, () => {
+      const start = next(SOURCE.length);
+      const end = Math.min(SOURCE.length, start + 1 + next(12));
+
+      return next(2) === 0
+        ? { start, end, replacement: '' }
+        : { start, end, replacement: '<1>', priority: 1 };
+    });
+  });
+}
+
+describe('applyEdits under random input', () => {
+  it('generates overlapping sets often enough to matter', () => {
+    const overlapping = removalSets(7).filter((edits) =>
+      edits.some((a, i) => edits.some((b, j) => j !== i && a.start < b.end && b.start < a.end)),
+    );
+
+    expect(overlapping.length).toBeGreaterThan(5000);
+  });
+
+  it('keeps exactly the characters no edit covered, in order', () => {
+    // Two-sided on purpose. Asserting only that covered text is absent is
+    // satisfied by returning the empty string, so it cannot see over-removal —
+    // and destroying the note is as much a bug as leaking it.
+    for (const edits of removalSets(7)) {
+      const covered = new Set<number>();
+
+      for (const edit of edits) {
+        for (let index = edit.start; index < edit.end; index += 1) covered.add(index);
+      }
+
+      const expected = SOURCE.split('')
+        .filter((_, index) => !covered.has(index))
+        .join('');
+
+      const actual = applyEdits(SOURCE, edits).replaceAll(MARKERS, '');
+
+      if (actual !== expected) {
+        throw new Error(`expected "${expected}", got "${actual}" from ${JSON.stringify(edits)}`);
+      }
+    }
+  });
+
+  it('never splices a fragment of one marker into another', () => {
+    // Multi-character markers on purpose: single-character replacements
+    // truncate cleanly on an overlap and hide this entirely.
+    for (const edits of removalSets(11)) {
       const output = applyEdits(SOURCE, edits);
 
-      const covered = new Set<string>();
+      expect(output.replaceAll(MARKERS, '')).toMatch(/^[A-Z]*$/);
+    }
+  });
+
+  it('holds when a rewrite is in the mix', () => {
+    // Rewrites make exact reconstruction ambiguous — whether one survives
+    // depends on resolution — so this keeps the one-sided property for them.
+    const next = makeRandom(13);
+
+    for (let round = 0; round < 20_000; round += 1) {
+      const edits: Edit[] = Array.from({ length: 1 + next(4) }, () => {
+        const start = next(SOURCE.length);
+        const end = Math.min(SOURCE.length, start + 1 + next(12));
+        const kind = next(3);
+
+        return kind === 0
+          ? { start, end, replacement: '' }
+          : kind === 1
+            ? { start, end, replacement: '<1>', priority: 1 }
+            : { start, end, replacement: '<2>' };
+      });
+
+      const output = applyEdits(SOURCE, edits);
 
       for (const edit of edits) {
         if (edit.replacement !== '' && (edit.priority ?? 0) === 0) continue;
 
-        for (let index = edit.start; index < edit.end; index += 1) covered.add(SOURCE[index]!);
-      }
-
-      for (const letter of covered) {
-        if (output.includes(letter)) {
-          throw new Error(
-            `"${letter}" survived: edits ${JSON.stringify(edits)} produced "${output}"`,
-          );
+        for (let index = edit.start; index < edit.end; index += 1) {
+          if (output.includes(SOURCE[index]!)) {
+            throw new Error(`"${SOURCE[index]}" survived ${JSON.stringify(edits)} -> "${output}"`);
+          }
         }
       }
     }
   });
+});
 
-  it('never emits a character the source did not contain', () => {
-    for (const edits of randomEdits(11)) {
-      const output = applyEdits(SOURCE, edits);
+describe('rebaseEdits under random input', () => {
+  it('clips so the window behaves as the whole note would', () => {
+    // Clipping is the least-guarded code here and had only hand-written cases.
+    const next = makeRandom(17);
 
-      expect(output.replaceAll(/[#@]/g, '')).toMatch(/^[A-Z]*$/);
-    }
-  });
+    for (const edits of removalSets(19, 10_000)) {
+      const from = next(SOURCE.length);
+      const to = Math.min(SOURCE.length, from + 1 + next(SOURCE.length));
+      const window = SOURCE.slice(from, to);
 
-  it('keeps the output ordered as the source was', () => {
-    for (const edits of randomEdits(13)) {
-      const letters = applyEdits(SOURCE, edits).replaceAll(/[^A-Z]/g, '');
+      const covered = new Set<number>();
 
-      expect(letters.split('').toSorted().join('')).toBe(letters);
+      for (const edit of edits) {
+        for (let index = Math.max(edit.start, from); index < Math.min(edit.end, to); index += 1) {
+          covered.add(index);
+        }
+      }
+
+      const expected = window
+        .split('')
+        .filter((_, index) => !covered.has(index + from))
+        .join('');
+
+      const actual = applyEdits(window, rebaseEdits(edits, from, to)).replaceAll(MARKERS, '');
+
+      if (actual !== expected) {
+        throw new Error(
+          `window [${from},${to}) expected "${expected}", got "${actual}" from ${JSON.stringify(edits)}`,
+        );
+      }
     }
   });
 });

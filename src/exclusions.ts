@@ -89,6 +89,10 @@ export function isExcluded(note: NoteIdentity, rules: ExclusionRules): boolean {
  * settings field should not break copying, and the remaining patterns still
  * apply.
  *
+ * Overlapping matches are fused by `applyEdits` itself, so two patterns
+ * contending for the same text produce one marker rather than a fragment of
+ * one spliced into the other.
+ *
  * @param source - The note text.
  * @param patterns - Regular expression sources.
  * @returns Edits replacing each match with a redaction marker.
@@ -120,31 +124,5 @@ export function redactionEdits(source: string, patterns: readonly string[]): Edi
     }
   }
 
-  return merge(edits);
-}
-
-/**
- * Fuse overlapping redactions into one span.
- *
- * Two patterns matching overlapping text — `Acme Corp` and `Corporation` over
- * "Acme Corporation" — would otherwise contend for the same range, one would
- * lose the overlap check, and its tail would survive in the output. Their union
- * is what both were asking for.
- */
-function merge(edits: readonly Edit[]): Edit[] {
-  const ordered = edits.toSorted((a, b) => a.start - b.start || a.end - b.end);
-  const merged: Edit[] = [];
-
-  for (const edit of ordered) {
-    const last = merged.at(-1);
-
-    if (last && edit.start <= last.end) {
-      last.end = Math.max(last.end, edit.end);
-      continue;
-    }
-
-    merged.push({ ...edit });
-  }
-
-  return merged;
+  return edits;
 }

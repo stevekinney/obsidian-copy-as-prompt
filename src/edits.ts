@@ -102,9 +102,12 @@ function subtract(edit: Edit, covers: readonly Edit[]): Edit[] {
 function resolve(edits: readonly Edit[]): Edit[] {
   const deletions = union(edits.filter((edit) => edit.replacement === ''));
   const replacements = edits.filter((edit) => edit.replacement !== '');
-  const redactions = replacements
-    .filter((edit) => (edit.priority ?? 0) > 0)
-    .flatMap((edit) => subtract(edit, deletions));
+  // Unioned here rather than trusting a caller to have done it. Two overlapping
+  // redactions applied separately splice one marker into the middle of the
+  // other, emitting a fragment of it as literal text.
+  const redactions = union(replacements.filter((edit) => (edit.priority ?? 0) > 0)).flatMap(
+    (edit) => subtract(edit, deletions),
+  );
 
   const blocked = [...deletions, ...redactions];
   const kept = [...blocked];

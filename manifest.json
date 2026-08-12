@@ -3,8 +3,8 @@
   "name": "Copy as Prompt",
   "version": "0.1.0",
   "minAppVersion": "1.7.2",
-  "description": "Copy notes as prompts, resolving wikilinks to @paths or inlining them as self-contained text.",
+  "description": "Copy notes as prompts, with wikilinks resolved to @paths a coding agent can open.",
   "author": "Steve Kinney",
   "authorUrl": "https://stevekinney.net",
-  "isDesktopOnly": false
+  "isDesktopOnly": true
 }

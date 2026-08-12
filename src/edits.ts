@@ -17,6 +17,15 @@ export type Edit = {
   start: number;
   end: number;
   replacement: string;
+  /**
+   * Which edit survives when two overlap. Higher wins; default 0.
+   *
+   * This exists for redaction. Overlap resolution is otherwise outermost-wins,
+   * and a redaction that happened to straddle a link or the frontmatter block
+   * was the one dropped — leaving the text it was meant to remove in the
+   * output. A control that fails open on an overlap is not a control.
+   */
+  priority?: number | undefined;
 };
 
 /**
@@ -27,17 +36,21 @@ export type Edit = {
  * it deletes the inner one's text anyway. Sorting by start ascending and then
  * by length descending puts the outer edit first, so keeping the first of any
  * overlapping group is the right rule.
+ *
+ * Priority comes first, so a redaction beats whatever it overlaps.
  */
 function withoutOverlaps(edits: readonly Edit[]): Edit[] {
-  const sorted = edits.toSorted((a, b) => a.start - b.start || b.end - a.end);
+  const sorted = edits.toSorted(
+    (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.start - b.start || b.end - a.end,
+  );
   const kept: Edit[] = [];
-  let consumedThrough = -1;
 
   for (const edit of sorted) {
-    if (edit.start < consumedThrough) continue;
+    // Priority ordering means this can no longer assume left-to-right arrival,
+    // so every kept range has to be checked rather than just the last one.
+    const clashes = kept.some((other) => edit.start < other.end && other.start < edit.end);
 
-    kept.push(edit);
-    consumedThrough = Math.max(consumedThrough, edit.end);
+    if (!clashes) kept.push(edit);
   }
 
   return kept;
@@ -66,8 +79,13 @@ export function applyEdits(source: string, edits: readonly Edit[]): string {
  * Keep only the edits fully inside `[start, end)`, rebased to that window.
  *
  * The "copy selection" command hands us a slice of the note, but the metadata
- * cache's offsets are relative to the whole file. A link straddling the edge of
- * the selection is dropped rather than half-rewritten.
+ * cache's offsets are relative to the whole file.
+ *
+ * An edit that straddles the window is handled by what it does. A replacement —
+ * a link becoming a path — is dropped, because half of one is broken syntax. A
+ * deletion is clipped to what is visible and still applied: the frontmatter
+ * edit always starts at offset 0, so dropping it meant that selecting from
+ * inside the frontmatter block leaked the rest of it into the prompt.
  *
  * @param edits - Edits with offsets relative to the full note.
  * @param start - Selection start offset in the full note.
@@ -75,7 +93,21 @@ export function applyEdits(source: string, edits: readonly Edit[]): string {
  * @returns Edits with offsets relative to the selection.
  */
 export function rebaseEdits(edits: readonly Edit[], start: number, end: number): Edit[] {
-  return edits
-    .filter((edit) => edit.start >= start && edit.end <= end)
-    .map((edit) => ({ ...edit, start: edit.start - start, end: edit.end - start }));
+  const rebased: Edit[] = [];
+
+  for (const edit of edits) {
+    if (edit.end <= start || edit.start >= end) continue;
+
+    const whollyInside = edit.start >= start && edit.end <= end;
+
+    if (!whollyInside && edit.replacement !== '') continue;
+
+    rebased.push({
+      ...edit,
+      start: Math.max(edit.start, start) - start,
+      end: Math.min(edit.end, end) - start,
+    });
+  }
+
+  return rebased;
 }

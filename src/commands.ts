@@ -3,7 +3,7 @@ import { Notice, type App, type Editor, type MarkdownFileInfo, type TFile } from
 import { writeText } from './clipboard.js';
 import { describe, measure } from './estimate.js';
 import type { ExclusionRules } from './exclusions.js';
-import { parseList } from './list-field.js';
+import { parseLines, parseList } from './list-field.js';
 import { displayPath, reference } from './paths.js';
 import { PreviewModal } from './preview-modal.js';
 import { sliceBody } from './references.js';
@@ -25,6 +25,16 @@ import {
  * `main.ts` decides *when* these run; this decides what they do.
  */
 export class PromptCopier {
+  /**
+   * The vault's location, resolved once.
+   *
+   * `canUsePaths` runs from every command's `checkCallback`, which fires on
+   * each command-palette keystroke. Resolving it there meant a `require` and a
+   * `homedir()` syscall per keystroke, and neither answer changes while the app
+   * is open.
+   */
+  private context?: VaultContext | null;
+
   constructor(
     private readonly app: App,
     private readonly settings: () => PluginSettings,
@@ -32,7 +42,16 @@ export class PromptCopier {
 
   /** Whether real filesystem paths are available. False on mobile. */
   canUsePaths(): boolean {
-    return vaultContext(this.app) !== null;
+    this.context ??= vaultContext(this.app);
+
+    return this.context !== null;
+  }
+
+  /** The notes from a selection that the exclusion rules allow. */
+  allowedNotes(files: readonly TFile[]): TFile[] {
+    const rules = this.exclusions();
+
+    return files.filter((file) => !isFileExcluded(this.app, file, rules));
   }
 
   /** Copy one or more whole notes, following links as far as configured. */
@@ -54,7 +73,7 @@ export class PromptCopier {
     }
 
     const notes = await Promise.all(allowed.map((file) => resolveNote(this.app, file, options)));
-    const related = await resolveRelated(this.app, allowed, options);
+    const related = resolveRelated(this.app, allowed, options);
 
     await this.deliver([...notes, ...related]);
   }
@@ -63,7 +82,7 @@ export class PromptCopier {
   async copyCanvas(file: TFile): Promise<void> {
     const options = this.resolveOptions();
 
-    if (!options) return;
+    if (!options || this.refuse(file, options.exclusions)) return;
 
     const note = await resolveCanvas(this.app, file, options);
 
@@ -81,7 +100,7 @@ export class PromptCopier {
     const file = context.file;
     const options = this.resolveOptions();
 
-    if (!file || !options) return;
+    if (!file || !options || this.refuse(file, options.exclusions)) return;
 
     const note = await resolveNote(this.app, file, options);
     const from = editor.posToOffset(editor.getCursor('from'));
@@ -94,11 +113,29 @@ export class PromptCopier {
   async copyPath(file: TFile): Promise<void> {
     const options = this.resolveOptions();
 
-    if (!options) return;
+    if (!options || this.refuse(file, options.exclusions)) return;
 
     const path = displayPath(file.path, options.context, options.pathStyle);
 
     this.report(await writeText(reference(path)), 'Copied path to clipboard');
+  }
+
+  /**
+   * Whether this file is withheld, telling the user when it is.
+   *
+   * Every entry point has to ask. The rules are the plugin's only privacy
+   * guarantee, and one that holds on some paths and not others is worse than
+   * none — people calibrate trust on the path that worked.
+   *
+   * A path is withheld too: a filename can be the sensitive part, which is the
+   * whole reason excluded notes are unnamed by default.
+   */
+  private refuse(file: TFile, rules: ExclusionRules): boolean {
+    if (!isFileExcluded(this.app, file, rules)) return false;
+
+    new Notice('That note is excluded by your rules');
+
+    return true;
   }
 
   /** The exclusion rules, parsed from their settings fields. */
@@ -108,7 +145,7 @@ export class PromptCopier {
     return {
       tags: parseList(settings.excludeTags),
       folders: parseList(settings.excludeFolders),
-      patterns: parseList(settings.redactPatterns),
+      patterns: parseLines(settings.redactPatterns),
     };
   }
 
@@ -132,7 +169,10 @@ export class PromptCopier {
   /** Resolve options, or null when paths aren't available here. */
   private resolveOptions(): ResolveOptions | null {
     const settings = this.settings();
-    const context = vaultContext(this.app);
+
+    this.context ??= vaultContext(this.app);
+
+    const context = this.context;
 
     if (!context) {
       new Notice('This plugin needs the desktop app, where the vault has a filesystem path');

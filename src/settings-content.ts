@@ -16,8 +16,9 @@ const TEMPLATE_ROWS = 6;
 
 /** What the prompt looks like. */
 export function renderPromptSettings(section: SettingsSection): void {
-  section.heading('The prompt');
-
+  // No heading: the tab is already labelled with the plugin name, and Obsidian's
+  // guidelines call for the first group of general settings to sit bare at the
+  // top rather than under a redundant title.
   new Setting(section.containerEl)
     .setName('Template')
     .setDesc('Use {{title}}, {{path}}, and {{content}} as placeholders.')
@@ -102,7 +103,9 @@ export function renderFileSettings(section: SettingsSection): void {
 
   new Setting(section.containerEl)
     .setName('Path style')
-    .setDesc('How @paths are written. Absolute works from any working directory.')
+    .setDesc(
+      'How @paths are written. Absolute paths point at the same file from anywhere, but your agent still has to be allowed to read the vault; vault-relative paths assume it is running inside the vault.',
+    )
     .addDropdown((dropdown) =>
       dropdown
         .addOption('absolute', 'Absolute with ~ (~/Vault/Note.md)')

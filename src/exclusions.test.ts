@@ -20,6 +20,25 @@ describe('isExcluded', () => {
     expect(isExcluded({ path: 'Personal/2026/March.md', tags: [] }, rules)).toBe(true);
   });
 
+  it('excludes a matching folder found at any depth', () => {
+    // The field asks for bare folder names and promises they hold however the
+    // note was reached, so anchoring at the vault root would be a lie.
+    expect(isExcluded({ path: 'Work/Personal/Notes.md', tags: [] }, rules)).toBe(true);
+  });
+
+  it('matches a multi-segment folder rule', () => {
+    const nested = { ...rules, folders: ['Work/Journal'] };
+
+    expect(isExcluded({ path: 'Work/Journal/Mon.md', tags: [] }, nested)).toBe(true);
+    expect(isExcluded({ path: 'Journal/Mon.md', tags: [] }, nested)).toBe(false);
+  });
+
+  it('tolerates a relative-looking folder rule', () => {
+    expect(
+      isExcluded({ path: 'Personal/A.md', tags: [] }, { ...rules, folders: ['./Personal'] }),
+    ).toBe(true);
+  });
+
   it('does not exclude a folder that merely shares a prefix', () => {
     // `Personal-projects` is a different folder from `Personal`.
     expect(isExcluded({ path: 'Personal-projects/Ideas.md', tags: [] }, rules)).toBe(false);
@@ -88,6 +107,24 @@ describe('redactionEdits', () => {
 
   it('ignores a pattern that matches nothing', () => {
     expect(redactionEdits('nothing here', ['zzz'])).toEqual([]);
+  });
+
+  it('fuses two patterns matching overlapping text', () => {
+    // Contending for the same range used to leave one pattern's tail behind.
+    const source = 'The Acme Corporation ships things.';
+    const edits = redactionEdits(source, ['Acme Corp', 'Corporation']);
+
+    expect(applyEdits(source, edits)).toBe('The [redacted] ships things.');
+  });
+
+  it('outranks an edit it overlaps rather than being dropped', () => {
+    // A redaction that loses an overlap leaves exactly the text it existed to
+    // remove, so it carries priority over link rewriting and frontmatter.
+    const source = 'Mail bob@example.com now';
+    const edits = redactionEdits(source, [String.raw`\S+@\S+`]);
+    const other = { start: 0, end: 9, replacement: 'LINK' };
+
+    expect(applyEdits(source, [other, ...edits])).toBe('Mail [redacted] now');
   });
 
   it('ignores a zero-width match', () => {

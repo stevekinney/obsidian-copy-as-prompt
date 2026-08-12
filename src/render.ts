@@ -104,6 +104,6 @@ export function render(notes: RenderableNote[], options: RenderOptions): string 
       path: single?.displayPath ?? '',
       content: sections.join('\n\n'),
     },
-    { template: options.template, stripFrontmatter: false, fenceContent: options.fenceContent },
+    { template: options.template, fenceContent: options.fenceContent },
   );
 }

@@ -19,27 +19,12 @@ export type NoteSource = {
 /** The subset of settings that affects prompt output. */
 export type PromptOptions = {
   template: string;
-  stripFrontmatter: boolean;
   fenceContent: boolean;
 };
 
-const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/;
 const PLACEHOLDER = /\{\{(title|path|content)\}\}/g;
 const FENCE_RUN = /^[ \t]*(`{3,})/gm;
 const MINIMUM_FENCE = 3;
-
-/**
- * Remove a leading YAML frontmatter block.
- *
- * Only a block at the very start of the note counts — a `---` further down is
- * a horizontal rule, not frontmatter.
- *
- * @param source - The raw Markdown.
- * @returns The Markdown with any leading frontmatter block removed.
- */
-export function stripFrontmatter(source: string): string {
-  return source.replace(FRONTMATTER, '');
-}
 
 /**
  * Wrap Markdown in a fenced code block that the content cannot break out of.
@@ -75,8 +60,8 @@ export function fence(content: string, info = 'markdown'): string {
  * @returns The rendered prompt.
  */
 export function buildPrompt(note: NoteSource, options: PromptOptions): string {
-  const stripped = options.stripFrontmatter ? stripFrontmatter(note.content) : note.content;
-  const content = options.fenceContent ? fence(stripped.trim()) : stripped.trim();
+  const trimmed = note.content.trim();
+  const content = options.fenceContent ? fence(trimmed) : trimmed;
 
   const values: Record<string, string> = { title: note.title, path: note.path, content };
 

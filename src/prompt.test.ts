@@ -1,38 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildPrompt, fence, stripFrontmatter, type PromptOptions } from './prompt.js';
+import { buildPrompt, fence, type PromptOptions } from './prompt.js';
 
 const options: PromptOptions = {
   template: '{{title}} ({{path}})\n\n{{content}}',
-  stripFrontmatter: true,
   fenceContent: false,
 };
 
 it('loads the test preload', () => {
   expect((globalThis as Record<string, unknown>)['__BUN_TEST_SETUP_LOADED__']).toBe(true);
-});
-
-describe('stripFrontmatter', () => {
-  it('removes a leading YAML block', () => {
-    expect(stripFrontmatter('---\ntags: [a]\n---\nBody')).toBe('Body');
-  });
-
-  it('handles CRLF line endings', () => {
-    expect(stripFrontmatter('---\r\ntags: [a]\r\n---\r\nBody')).toBe('Body');
-  });
-
-  it('leaves a horizontal rule further down alone', () => {
-    const source = 'Intro\n\n---\n\nMore';
-    expect(stripFrontmatter(source)).toBe(source);
-  });
-
-  it('leaves a note without frontmatter alone', () => {
-    expect(stripFrontmatter('# Title\n')).toBe('# Title\n');
-  });
-
-  it('handles a frontmatter block with nothing after it', () => {
-    expect(stripFrontmatter('---\ntags: [a]\n---')).toBe('');
-  });
 });
 
 describe('fence', () => {
@@ -50,16 +26,10 @@ describe('fence', () => {
 });
 
 describe('buildPrompt', () => {
-  const note = { title: 'Note', path: 'folder/Note.md', content: '---\na: b\n---\nBody' };
+  const note = { title: 'Note', path: 'folder/Note.md', content: 'Body' };
 
   it('substitutes every placeholder', () => {
     expect(buildPrompt(note, options)).toBe('Note (folder/Note.md)\n\nBody');
-  });
-
-  it('keeps frontmatter when asked to', () => {
-    expect(buildPrompt(note, { ...options, stripFrontmatter: false })).toBe(
-      'Note (folder/Note.md)\n\n---\na: b\n---\nBody',
-    );
   });
 
   it('fences the content when asked to', () => {

@@ -4,7 +4,7 @@ An [Obsidian](https://obsidian.md) plugin that turns a note into a prompt — re
 
 ## What it does
 
-A note that says `See [[Design]] for the limits` isn't much use pasted into a chat window: the model has no idea what `[[Design]]` is. This plugin rewrites it into something actionable, in one of two shapes.
+A note that says `See [[Design]] for the limits` isn't much use pasted into a chat window: the model has no idea what `[[Design]]` is. This plugin rewrites it into something a coding agent can act on.
 
 It targets a coding agent in a terminal — anything that can read files off disk. Every link becomes an `@` path:
 
@@ -96,13 +96,12 @@ Pure, tested:
 - `cleanup.ts` — comment, Dataview, and Templater removal.
 - `paths.ts` — absolute/tilde paths and `@` reference formatting.
 - `references.ts` — the resolved-link model and how each link renders.
-- `render.ts` — assembling the final prompt in either mode.
-- `pasteboard.ts` — the macOS file-list property list.
+- `render.ts` — assembling the final prompt.
 - `settings.ts` — shape, defaults, and per-field recovery.
 
 Obsidian-facing, excluded from coverage:
 
-- `vault.ts` — resolves links against the vault and loads embed bodies.
+- `vault.ts` — resolves links against the vault.
 - `commands.ts` — resolve, render, write, report.
 - `clipboard.ts`, `desktop.ts` — clipboard and the lazy Node/Electron boundary.
 - `main.ts`, `settings-tab.ts`, `confirm-modal.ts` — registration and UI.

@@ -198,8 +198,15 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
    */
   private copyNotes(notes: TFile[]): void {
     const run = (): void => void this.copier.copyNotes(notes);
+    // Count what will actually be copied. Counting the file tree instead meant
+    // asking "copy 300 notes?" and then copying the 10 that survived exclusion.
+    const allowed = this.copier.allowedNotes(notes);
 
-    if (notes.length <= this.settings.folderNoteLimit) {
+    // The review modal already shows exactly what is about to be copied, so
+    // asking first would be two dialogs for one action.
+    const reviewing = this.settings.previewMode === 'always';
+
+    if (reviewing || allowed.length <= this.settings.folderNoteLimit) {
       run();
 
       return;
@@ -207,7 +214,7 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
 
     new ConfirmModal(
       this.app,
-      `This will copy ${notes.length} notes into one prompt. Continue?`,
+      `This will copy ${allowed.length} notes into one prompt. Continue?`,
       run,
     ).open();
   }

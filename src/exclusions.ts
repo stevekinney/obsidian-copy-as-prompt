@@ -50,12 +50,20 @@ function tagMatches(tag: string, rule: string): boolean {
   return value === target || value.startsWith(`${target}/`);
 }
 
+/**
+ * Whether a note sits under a folder named by the rule, at any depth.
+ *
+ * Anchoring at the vault root would mean `Journal` protects `Journal/` and not
+ * `Work/Journal/`, while the settings field asks for bare folder names and
+ * promises they hold "however they were reached". Matching whole segments keeps
+ * `Personal` from catching `Personal-projects`.
+ */
 function folderMatches(path: string, rule: string): boolean {
-  const folder = rule.replace(/^\/+|\/+$/g, '').toLowerCase();
+  const folder = rule.replace(/^[./]+|\/+$/g, '').toLowerCase();
 
   if (!folder) return false;
 
-  return `${path.toLowerCase()}/`.startsWith(`${folder}/`);
+  return `/${path.toLowerCase()}`.includes(`/${folder}/`);
 }
 
 /**
@@ -102,9 +110,38 @@ export function redactionEdits(source: string, patterns: readonly string[]): Edi
         start: match.index,
         end: match.index + match[0].length,
         replacement: '[redacted]',
+        // Outranks link rewriting and frontmatter removal: a redaction that
+        // loses an overlap leaves behind exactly the text it existed to remove.
+        priority: 1,
       });
     }
   }
 
-  return edits;
+  return merge(edits);
+}
+
+/**
+ * Fuse overlapping redactions into one span.
+ *
+ * Two patterns matching overlapping text — `Acme Corp` and `Corporation` over
+ * "Acme Corporation" — would otherwise contend for the same range, one would
+ * lose the overlap check, and its tail would survive in the output. Their union
+ * is what both were asking for.
+ */
+function merge(edits: readonly Edit[]): Edit[] {
+  const ordered = edits.toSorted((a, b) => a.start - b.start || a.end - b.end);
+  const merged: Edit[] = [];
+
+  for (const edit of ordered) {
+    const last = merged.at(-1);
+
+    if (last && edit.start <= last.end) {
+      last.end = Math.max(last.end, edit.end);
+      continue;
+    }
+
+    merged.push({ ...edit });
+  }
+
+  return merged;
 }

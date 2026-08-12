@@ -3,13 +3,10 @@ import { Platform } from 'obsidian';
 /**
  * Reaching Node from inside Obsidian, safely.
  *
- * `manifest.json` says `isDesktopOnly: false`, which is a promise that this
- * plugin loads on iOS and Android. That promise is kept by never importing
- * `node:*` at module scope: a static import becomes a top-level `require` in
- * the bundle and takes the whole plugin down on mobile before any guard can
- * run. The lookup below goes through the global `require` Obsidian exposes on
- * desktop, behind a platform check, so the bundler never records a dependency
- * at all.
+ * The plugin is `isDesktopOnly`, so this could be a static import. It stays
+ * lazy anyway: a top-level `require('node:os')` executes when the bundle
+ * loads, and a failure there takes the whole plugin down before any of it can
+ * report why. Behind a platform check, the worst case is a missing `~`.
  */
 
 type NodeRequire = (id: string) => unknown;

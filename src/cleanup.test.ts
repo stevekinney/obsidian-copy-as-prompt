@@ -13,9 +13,19 @@ describe('commentEdits', () => {
     expect(strip(source, commentEdits(source))).toBe('Ship it  today');
   });
 
-  it('removes a comment spanning lines', () => {
+  it('removes a comment spanning lines, taking its trailing newline', () => {
     const source = 'Before\n%%\nprivate\nthinking\n%%\nAfter';
-    expect(strip(source, commentEdits(source))).toBe('Before\n\nAfter');
+    expect(strip(source, commentEdits(source))).toBe('Before\nAfter');
+  });
+
+  it('does not let a stray %% pair with a later comment', () => {
+    // The permissive form deleted everything between a stray delimiter and the
+    // *opening* of a real comment, then emitted the comment's text.
+    const source = 'printf("100%%\\n");\n\nConfidential paragraph.\n\n%%private note%%';
+    const result = strip(source, commentEdits(source));
+
+    expect(result).toContain('Confidential paragraph.');
+    expect(result).not.toContain('private note');
   });
 
   it('pairs delimiters rather than swallowing everything between the first and last', () => {
@@ -59,6 +69,19 @@ describe('dynamicBlockEdits', () => {
     expect(strip(source, dynamicBlockEdits(source))).toBe(source);
   });
 
+  it('leaves code spans that merely start with = alone', () => {
+    // This regex used to match any code span beginning with `=`, silently
+    // deleting arrow functions and spreadsheet formulas.
+    for (const source of ['Use `=>` here', 'Try `=SUM(A1:B2)` now', 'Not `=== ` either']) {
+      expect(strip(source, dynamicBlockEdits(source))).toBe(source);
+    }
+  });
+
+  it('strips a dataview block written with CRLF line endings', () => {
+    const source = 'Before\r\n```dataview\r\nTABLE x\r\n```\r\nAfter';
+    expect(strip(source, dynamicBlockEdits(source))).toBe('Before\r\nAfter');
+  });
+
   it('leaves an ordinary code span alone', () => {
     const source = 'Call `render()` first';
     expect(strip(source, dynamicBlockEdits(source))).toBe(source);
@@ -76,6 +99,14 @@ describe('tidy', () => {
 
   it('trims the whole string', () => {
     expect(tidy('\n\n  Body  \n\n')).toBe('Body');
+  });
+
+  it('collapses blank runs written with CRLF', () => {
+    expect(tidy('A\r\n\r\n\r\n\r\nB')).toBe('A\n\nB');
+  });
+
+  it('collapses the double space a removed tag leaves mid-sentence', () => {
+    expect(tidy('Shipped  today')).toBe('Shipped today');
   });
 
   it('preserves a single blank line between paragraphs', () => {

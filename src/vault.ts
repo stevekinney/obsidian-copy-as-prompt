@@ -91,22 +91,24 @@ function cacheEdits(
 
   if (options.stripFrontmatter && frontmatter) {
     // Take the newline after the closing `---` too, so the body doesn't start
-    // with a blank line.
-    edits.push({
-      start: frontmatter.start.offset,
-      end: frontmatter.end.offset + 1,
-      replacement: '',
-    });
+    // with a blank line — both halves of it on a CRLF file.
+    const after = frontmatter.end.offset;
+    const end = content.startsWith('\r\n', after) ? after + 2 : after + 1;
+
+    edits.push({ start: frontmatter.start.offset, end, replacement: '' });
   }
 
   if (options.stripTags) {
     for (const tag of cache?.tags ?? []) {
-      const { start, end } = tag.position;
-      // Swallow one leading space so `Shipped #work today` doesn't become
-      // `Shipped  today`.
-      const from = content[start.offset - 1] === ' ' ? start.offset - 1 : start.offset;
-
-      edits.push({ start: from, end: end.offset, replacement: '' });
+      // Exactly the tag's own range. Reaching back over the preceding space
+      // made this edit overlap whatever owned that character — a redaction, or
+      // the window edge of a selection — and the tag edit was the one dropped,
+      // so the tag survived. `tidy` collapses the double space instead.
+      edits.push({
+        start: tag.position.start.offset,
+        end: tag.position.end.offset,
+        replacement: '',
+      });
     }
   }
 
@@ -208,18 +210,22 @@ function linkedNotes(app: App, file: TFile): TFile[] {
  * Follow links outward from the chosen notes.
  *
  * Breadth-first so that depth means hops rather than branch order, and excluded
- * notes are dropped before their bodies are ever read.
+ * notes are dropped before they are looked at.
+ *
+ * Reached notes are never read. Only their path is rendered, so loading bodies
+ * would mean thousands of file reads on a densely linked vault to produce a
+ * bullet list — which is why this is synchronous.
  *
  * @param app - The Obsidian app.
  * @param roots - The notes the user actually chose.
  * @param options - Resolution options, including `linkDepth`.
  * @returns The reached notes, each flagged `related`.
  */
-export async function resolveRelated(
+export function resolveRelated(
   app: App,
   roots: readonly TFile[],
   options: ResolveOptions,
-): Promise<RenderableNote[]> {
+): RenderableNote[] {
   if (options.linkDepth <= 0) return [];
 
   const seen = new Set(roots.map((file) => file.path));
@@ -245,9 +251,13 @@ export async function resolveRelated(
     frontier = next;
   }
 
-  return Promise.all(
-    reached.map(async (file) => ({ ...(await resolveNote(app, file, options)), related: true })),
-  );
+  return reached.map((file) => ({
+    title: file.basename,
+    vaultPath: file.path,
+    displayPath: displayPath(file.path, options.context, options.pathStyle),
+    body: { content: '', references: [], cacheEdits: [] },
+    related: true,
+  }));
 }
 
 /**
@@ -264,11 +274,15 @@ export async function resolveCanvas(
   options: ResolveOptions,
 ): Promise<RenderableNote> {
   const sections = organizeCanvas(parseCanvas(await app.vault.cachedRead(file)));
+  const body = buildCanvasBody(sections, (path) => resolveTarget(app, file, path, options));
 
   return {
     title: file.basename,
     vaultPath: file.path,
     displayPath: displayPath(file.path, options.context, options.pathStyle),
-    body: buildCanvasBody(sections, (path) => resolveTarget(app, file, path, options)),
+    // A canvas has no metadata cache, so redaction has to be applied to the
+    // synthesized body here — otherwise a pattern that scrubs notes silently
+    // does nothing to text typed directly onto a canvas.
+    body: { ...body, cacheEdits: redactionEdits(body.content, options.exclusions.patterns) },
   };
 }

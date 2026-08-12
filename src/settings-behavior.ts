@@ -62,7 +62,7 @@ export function renderAdvancedSettings(section: SettingsSection): void {
   section.list(
     'redactPatterns',
     'Redact patterns',
-    'Regular expressions replaced with [redacted] in any included note. An invalid pattern is skipped.',
+    'One regular expression per line, replaced with [redacted] in any included note. A pattern that will not compile is skipped.',
     String.raw`\d{3}-\d{2}-\d{4}`,
   );
 }

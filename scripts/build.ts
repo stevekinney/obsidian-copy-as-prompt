@@ -49,6 +49,20 @@ const watching = Bun.argv.includes('--watch');
 const outdir = (!production && Bun.env['OBSIDIAN_PLUGIN_DIR']) || '.';
 
 async function build(): Promise<boolean> {
+  try {
+    return await bundle();
+  } catch (error) {
+    // Bun.build throws — rather than returning success: false — when an import
+    // cannot be resolved. In watch mode that is usually a file mid-rename, so
+    // report it and keep watching instead of exiting and leaving you wondering
+    // why saves stopped rebuilding.
+    console.error(error instanceof Error ? error.message : error);
+
+    return false;
+  }
+}
+
+async function bundle(): Promise<boolean> {
   const result = await Bun.build({
     entrypoints: ['./src/main.ts'],
     outdir,

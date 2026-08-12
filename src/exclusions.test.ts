@@ -1,23 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
 import { applyEdits } from './edits.js';
-import { isExcluded, parseList, redactionEdits, NO_EXCLUSIONS } from './exclusions.js';
+import { isExcluded, redactionEdits, NO_EXCLUSIONS } from './exclusions.js';
 
 const rules = { tags: ['#private'], folders: ['Personal'], patterns: [] };
-
-describe('parseList', () => {
-  it('splits on commas and newlines', () => {
-    expect(parseList('a, b\nc')).toEqual(['a', 'b', 'c']);
-  });
-
-  it('trims and drops empties', () => {
-    expect(parseList(' a ,, \n b ')).toEqual(['a', 'b']);
-  });
-
-  it('returns nothing for an empty field', () => {
-    expect(parseList('   ')).toEqual([]);
-  });
-});
 
 describe('isExcluded', () => {
   it('excludes nothing when there are no rules', () => {

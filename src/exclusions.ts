@@ -33,14 +33,6 @@ export type NoteIdentity = {
 /** Rules that exclude nothing. */
 export const NO_EXCLUSIONS: ExclusionRules = { tags: [], folders: [], patterns: [] };
 
-/** Split a comma or newline separated settings field into entries. */
-export function parseList(value: string): string[] {
-  return value
-    .split(/[\n,]/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-}
-
 function normalizeTag(tag: string): string {
   return tag.replace(/^#/, '').toLowerCase();
 }

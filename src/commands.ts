@@ -1,9 +1,10 @@
-import { Notice, type App, type Editor, type MarkdownFileInfo, type TFile } from 'obsidian';
+import { Notice, TFile, type App, type Editor, type MarkdownFileInfo } from 'obsidian';
 
 import { buildCommand, flagsFrom } from './cli.js';
 import { writeFiles, writeImage, writeText, type FileClipboardResult } from './clipboard.js';
 import { describe, measure } from './estimate.js';
-import { parseList, type ExclusionRules } from './exclusions.js';
+import type { ExclusionRules } from './exclusions.js';
+import { parseList } from './list-field.js';
 import { displayPath, reference } from './paths.js';
 import { PreviewModal } from './preview-modal.js';
 import { sliceBody } from './references.js';
@@ -254,7 +255,11 @@ export class PromptCopier {
     const { images } = this.queue;
     const position = this.queue.index;
     const image = images[position];
-    const target = image ? this.app.vault.getFileByPath(image.vaultPath) : null;
+    // getAbstractFileByPath rather than the newer getFileByPath, which needs
+    // Obsidian 1.13. This form works on every version, which is what keeps
+    // minAppVersion low — it is a compatibility choice, not a requirement.
+    const found = image ? this.app.vault.getAbstractFileByPath(image.vaultPath) : null;
+    const target = found instanceof TFile ? found : null;
 
     if (!target) {
       new Notice('That image is no longer in the vault');

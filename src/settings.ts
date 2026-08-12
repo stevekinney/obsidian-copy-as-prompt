@@ -42,6 +42,8 @@ export type PluginSettings = {
   excludeFolders: string;
   /** Regular expressions blanked out of any included note. */
   redactPatterns: string;
+  /** Which output modes appear in context menus. */
+  menuModes: MenuModes;
   /** When to show the prompt for review before it reaches the clipboard. */
   previewMode: PreviewMode;
   /** With `previewMode: 'large'`, the estimated token count that triggers review. */
@@ -68,6 +70,17 @@ export type PluginSettings = {
   cliArgumentLimit: number;
 };
 
+/**
+ * Which output modes are offered on context menus.
+ *
+ * Scoped to menus on purpose. Commands stay registered whatever this says, so
+ * an existing hotkey keeps working and nothing becomes unreachable — this only
+ * decides what takes up space on a menu you did not go looking through.
+ */
+export type MenuModes = 'both' | 'paths' | 'self-contained';
+
+const MENU_MODES: readonly MenuModes[] = ['both', 'paths', 'self-contained'];
+
 /** When the review modal appears. */
 export type PreviewMode = 'never' | 'large' | 'always';
 
@@ -89,6 +102,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   excludeTags: '',
   excludeFolders: '',
   redactPatterns: '',
+  menuModes: 'both',
   previewMode: 'never',
   previewThreshold: 8000,
   nameExcluded: false,
@@ -96,7 +110,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   imageExtensions: 'png, jpg, jpeg, gif, bmp, svg, webp, avif',
   attachImageFiles: true,
   cliCommand: 'claude',
-  cliForwardKeys: 'model',
+  cliForwardKeys: 'model, effort',
   cliAddVaultDir: true,
   cliAddDirFlag: 'add-dir',
   cliExtraArguments: '',
@@ -140,6 +154,15 @@ export type StringSettingKey = {
 export type NumberSettingKey = {
   [K in keyof PluginSettings]: number extends PluginSettings[K] ? K : never;
 }[keyof PluginSettings];
+
+function isMenuModes(value: unknown): value is MenuModes {
+  return MENU_MODES.some((mode) => mode === value);
+}
+
+/** Narrow a dropdown's string back to the union, falling back to the default. */
+export function toMenuModes(value: unknown): MenuModes {
+  return isMenuModes(value) ? value : DEFAULT_SETTINGS.menuModes;
+}
 
 function isPathStyle(value: unknown): value is PathStyle {
   return PATH_STYLES.some((style) => style === value);
@@ -206,6 +229,7 @@ export function parseSettings(source: unknown): PluginSettings {
     excludeTags: text('excludeTags'),
     excludeFolders: text('excludeFolders'),
     redactPatterns: text('redactPatterns'),
+    menuModes: isMenuModes(record['menuModes']) ? record['menuModes'] : DEFAULT_SETTINGS.menuModes,
     previewMode: toPreviewMode(record['previewMode'] ?? record['previewBeforeCopy']),
     previewThreshold: counted('previewThreshold', Number.MAX_SAFE_INTEGER),
     nameExcluded: boolean('nameExcluded'),

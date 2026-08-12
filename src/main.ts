@@ -19,6 +19,26 @@ import {
 } from './settings.js';
 import { CopyAsPromptSettingTab } from './settings-tab.js';
 
+/** Groups this plugin's entries together on a context menu. */
+const MENU_SECTION = 'copy-as-prompt';
+
+/** The CLI entry's title, shared by every menu that offers it. */
+const CLI_TITLE = 'Copy as CLI command';
+
+/**
+ * A context-menu title.
+ *
+ * Menus, unlike the command palette, are not prefixed with the plugin name, so
+ * the word "prompt" has to be in the title itself or there is nothing to say
+ * what the entry does. Sentence case throughout, per Obsidian's conventions.
+ */
+function menuTitle(subject: string | null, mode: RenderMode): string {
+  const what = subject ? `${subject} ` : '';
+  const qualifier = mode === 'self-contained' ? ' (self-contained)' : '';
+
+  return `Copy ${what}as prompt${qualifier}`;
+}
+
 /** The two output shapes, and how each is labelled to the user. */
 const MODES: { mode: RenderMode; id: string; label: string }[] = [
   { mode: 'paths', id: 'paths', label: 'with @paths' },
@@ -125,7 +145,7 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
 
     this.addCommand({
       id: 'copy-cli-command',
-      name: 'Copy as a CLI command',
+      name: CLI_TITLE,
       checkCallback: (checking) => {
         const file = this.activeNote();
 
@@ -161,32 +181,83 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
 
     this.registerEvent(
       this.app.workspace.on('editor-menu', (menu, editor: Editor, context) => {
-        if (!editor.somethingSelected()) return;
-
-        for (const { mode, label } of MODES) {
-          if (!this.supports(mode)) continue;
-
-          menu.addItem((item) =>
-            item
-              .setTitle(`Copy selection ${label}`)
-              .setIcon('clipboard-copy')
-              .onClick(() => void this.copier.copySelection(editor, context, mode)),
-          );
-        }
+        this.addEditorItems(menu, editor, context);
       }),
     );
   }
 
+  /**
+   * The modes a context menu should offer.
+   *
+   * Folds together what the platform supports and what you asked for. If the
+   * preference leaves nothing — asking for paths on mobile, say — it is ignored
+   * rather than obeyed, because a context menu whose entries silently vanish
+   * reads as a broken plugin, not as a setting working correctly.
+   */
+  private menuModes(): typeof MODES {
+    const supported = MODES.filter(({ mode }) => this.supports(mode));
+    const preference = this.settings.menuModes;
+
+    if (preference === 'both') return supported;
+
+    const chosen = supported.filter(({ mode }) => mode === preference);
+
+    return chosen.length > 0 ? chosen : supported;
+  }
+
+  /** Add one grouped, prompt-labelled entry. */
+  private addItem(menu: Menu, title: string, run: () => void): void {
+    menu.addItem((item) =>
+      item
+        .setTitle(title)
+        .setIcon('clipboard-copy')
+        // A shared section keeps these together behind one separator instead of
+        // scattering them through whatever else is on the menu.
+        .setSection(MENU_SECTION)
+        .onClick(run),
+    );
+  }
+
+  /**
+   * Entries for the editor's context menu.
+   *
+   * The whole note comes first, because that is the common case — the earlier
+   * behaviour offered only the selection, and offered nothing at all when there
+   * wasn't one. Selection entries appear only when there is a selection to copy.
+   */
+  private addEditorItems(menu: Menu, editor: Editor, context: MarkdownFileInfo): void {
+    const file = context.file;
+
+    for (const { mode } of this.menuModes()) {
+      if (!file) continue;
+
+      this.addItem(menu, menuTitle(null, mode), () => this.copyNotes([file], mode));
+    }
+
+    if (editor.somethingSelected()) {
+      for (const { mode } of this.menuModes()) {
+        this.addItem(
+          menu,
+          menuTitle('selection', mode),
+          () => void this.copier.copySelection(editor, context, mode),
+        );
+      }
+    }
+
+    if (file && this.supports('paths')) {
+      this.addItem(menu, CLI_TITLE, () => void this.copier.copyCommand(file));
+    }
+  }
+
   /** Menu entries for a canvas, which is copied whole rather than as notes. */
   private addCanvasItems(menu: Menu, canvas: TFile): void {
-    for (const { mode, label } of MODES) {
+    for (const { mode } of MODES) {
       if (!this.supports(mode)) continue;
 
-      menu.addItem((item) =>
-        item
-          .setTitle(`Copy canvas ${label}`)
-          .setIcon('clipboard-copy')
-          .onClick(() => void this.copier.copyCanvas(canvas, mode)),
+      this.addItem(
+        menu,
+        menuTitle('canvas', mode),
+        () => void this.copier.copyCanvas(canvas, mode),
       );
     }
   }
@@ -204,18 +275,29 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
 
     if (notes.length === 0) return;
 
-    const suffix = notes.length === 1 ? '' : ` (${notes.length} notes)`;
+    // "Copy as prompt" for one note; "Copy 12 notes as prompt" for a set, so the
+    // scale of what you are about to copy is visible before you click.
+    const subject = notes.length === 1 ? null : `${notes.length} notes`;
 
-    for (const { mode, label } of MODES) {
-      if (!this.supports(mode)) continue;
-
-      menu.addItem((item) =>
-        item
-          .setTitle(`Copy ${label}${suffix}`)
-          .setIcon('clipboard-copy')
-          .onClick(() => this.copyNotes(notes, mode)),
-      );
+    for (const { mode } of this.menuModes()) {
+      this.addItem(menu, menuTitle(subject, mode), () => this.copyNotes(notes, mode));
     }
+
+    this.addCliItem(menu, notes);
+  }
+
+  /**
+   * The CLI entry, offered only for a single note.
+   *
+   * It reads that note's frontmatter for its flags, so there is no sensible
+   * answer for a multi-selection or a folder.
+   */
+  private addCliItem(menu: Menu, notes: readonly TFile[]): void {
+    const note = notes.length === 1 ? notes[0] : null;
+
+    if (!note || !this.supports('paths')) return;
+
+    this.addItem(menu, CLI_TITLE, () => void this.copier.copyCommand(note));
   }
 
   /**

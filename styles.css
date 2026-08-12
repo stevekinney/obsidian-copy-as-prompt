@@ -32,3 +32,19 @@
   resize: vertical;
   white-space: pre;
 }
+
+.copy-as-prompt-flag-name {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.copy-as-prompt-flag-description {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.copy-as-prompt-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin-block: 0 var(--size-4-4);
+}

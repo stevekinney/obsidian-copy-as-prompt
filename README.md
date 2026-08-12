@@ -49,6 +49,18 @@ Six commands (active note and selection, in each mode; path only; referenced ima
 
 Paths-mode commands hide themselves on mobile, where there's no filesystem path to emit. Self-contained mode works everywhere.
 
+## Installing
+
+Until this is in the community directory, install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat), which installs and auto-updates plugins straight from a GitHub repository:
+
+1. Install **BRAT** from Settings → Community plugins.
+2. Run **BRAT: Add a beta plugin for testing** from the command palette.
+3. Paste this repository's URL.
+
+BRAT reads `manifest.json` from the repo root and pulls `main.js`, `manifest.json`, and `styles.css` from the latest release, then keeps them updated.
+
+To install by hand instead, download those three files from the [latest release](../../releases/latest) into `<vault>/.obsidian/plugins/copy-as-prompt/` and enable the plugin.
+
 ## Development
 
 You need [Bun](https://bun.sh). Install dependencies with `bun install`.

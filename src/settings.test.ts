@@ -110,3 +110,18 @@ describe('parseSettings migration and new fields', () => {
     expect(parseSettings({}).nameExcluded).toBe(false);
   });
 });
+
+describe('parseSettings menu modes', () => {
+  it('defaults to offering both modes', () => {
+    expect(parseSettings({}).menuModes).toBe('both');
+  });
+
+  it('keeps a chosen mode', () => {
+    expect(parseSettings({ menuModes: 'paths' }).menuModes).toBe('paths');
+    expect(parseSettings({ menuModes: 'self-contained' }).menuModes).toBe('self-contained');
+  });
+
+  it('rejects an unknown value', () => {
+    expect(parseSettings({ menuModes: 'neither' }).menuModes).toBe(DEFAULT_SETTINGS.menuModes);
+  });
+});

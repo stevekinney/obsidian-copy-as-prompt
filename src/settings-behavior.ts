@@ -92,8 +92,15 @@ export function renderAdvancedSettings(section: SettingsSection): void {
   section.text(
     'cliAddDirFlag',
     'CLI directory flag',
-    'The flag name granting directory access, without dashes.',
+    'The flag that grants or sets directory access, without dashes. Claude Code uses add-dir; Codex uses cd.',
     'add-dir',
+  );
+
+  section.list(
+    'cliKnownFlags',
+    'CLI flag names',
+    "Offered by autocompletion when forwarding frontmatter keys. Paste more from your tool's --help.",
+    'model, effort',
   );
 
   section.number(

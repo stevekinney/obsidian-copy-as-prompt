@@ -4,6 +4,7 @@ import { buildCommand, flagsFrom, shellQuote, type CommandOptions } from './cli.
 
 const base: CommandOptions = {
   command: 'claude',
+  subcommand: '',
   flags: [],
   addDirFlag: 'add-dir',
   extraArguments: '',
@@ -120,6 +121,22 @@ describe('buildCommand', () => {
     expect(buildCommand({ ...base, addDir: '/Users/steve/My Vault' })).toBe(
       "claude --add-dir '/Users/steve/My Vault' 'Hello'",
     );
+  });
+
+  it('inserts a subcommand between the executable and its flags', () => {
+    const command = buildCommand({
+      ...base,
+      subcommand: 'exec',
+      flags: [{ name: 'model', values: ['o3'] }],
+    });
+
+    expect(command).toBe(
+      "codex-style: claude exec --model o3 'Hello'".replace('codex-style: ', ''),
+    );
+  });
+
+  it('ignores a blank subcommand', () => {
+    expect(buildCommand({ ...base, subcommand: '   ' })).toBe("claude 'Hello'");
   });
 
   it('uses a configured directory flag', () => {

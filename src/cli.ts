@@ -19,6 +19,8 @@ export type CliFlag = {
 export type CommandOptions = {
   /** The executable, e.g. `claude`. */
   command: string;
+  /** A subcommand between the executable and its flags, e.g. `exec`. Often empty. */
+  subcommand: string;
   flags: CliFlag[];
   /** A directory to grant the session access to, if any. */
   addDir?: string | undefined;
@@ -132,6 +134,9 @@ function renderFlag(flag: CliFlag): string[] {
  */
 export function buildCommand(options: CommandOptions): string {
   const parts = [options.command];
+  const subcommand = options.subcommand.trim();
+
+  if (subcommand) parts.push(subcommand);
 
   if (options.addDir && options.addDirFlag) {
     parts.push(`--${options.addDirFlag}`, renderValue(options.addDir));

@@ -152,7 +152,8 @@ export class PromptCopier {
     const { text } = render([note, ...related], this.renderOptions('paths'));
 
     const command = buildCommand({
-      command: settings.cliCommand.trim() || 'claude',
+      command: settings.cliCommand.trim(),
+      subcommand: settings.cliSubcommand,
       flags: flagsFrom(
         this.app.metadataCache.getFileCache(file)?.frontmatter,
         parseList(settings.cliForwardKeys),

@@ -56,8 +56,14 @@ export type PluginSettings = {
   imageExtensions: string;
   /** Attempt the macOS one-paste-attaches-all path for images. */
   attachImageFiles: boolean;
+  /** The built-in profile last applied, shown in the picker. */
+  cliProfile: string;
   /** The executable the CLI command starts with. */
   cliCommand: string;
+  /** A subcommand between the executable and its flags. Often empty. */
+  cliSubcommand: string;
+  /** Flag names offered by autocompletion, for whichever tool is configured. */
+  cliKnownFlags: string;
   /** Frontmatter keys forwarded to the CLI as `--key value`. */
   cliForwardKeys: string;
   /** Whether the CLI command grants the session access to the vault. */
@@ -109,7 +115,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   pathPrefix: '',
   imageExtensions: 'png, jpg, jpeg, gif, bmp, svg, webp, avif',
   attachImageFiles: true,
+  cliProfile: 'claude',
   cliCommand: 'claude',
+  cliSubcommand: '',
+  cliKnownFlags:
+    'add-dir, agent, allowed-tools, append-system-prompt, disallowed-tools, effort, fallback-model, fork-session, max-budget-usd, max-turns, mcp-config, model, output-format, permission-mode, print, resume, session-id, settings, system-prompt, tools',
   cliForwardKeys: 'model, effort',
   cliAddVaultDir: true,
   cliAddDirFlag: 'add-dir',
@@ -236,7 +246,10 @@ export function parseSettings(source: unknown): PluginSettings {
     pathPrefix: text('pathPrefix'),
     imageExtensions: text('imageExtensions'),
     attachImageFiles: boolean('attachImageFiles'),
+    cliProfile: text('cliProfile'),
     cliCommand: text('cliCommand'),
+    cliSubcommand: text('cliSubcommand'),
+    cliKnownFlags: text('cliKnownFlags'),
     cliForwardKeys: text('cliForwardKeys'),
     cliAddVaultDir: boolean('cliAddVaultDir'),
     cliAddDirFlag: text('cliAddDirFlag'),

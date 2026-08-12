@@ -6,16 +6,16 @@ An [Obsidian](https://obsidian.md) plugin that turns a note into a prompt — re
 
 A note that says `See [[Design]] for the limits` isn't much use pasted into a chat window: the model has no idea what `[[Design]]` is. This plugin rewrites it into something actionable, in one of two shapes.
 
-**Paths mode** targets Claude Code in a terminal. Every link becomes an `@` path:
+**Paths mode** targets a coding agent in a terminal — Claude Code, Codex, Gemini, Copilot, or anything else that can read files. Every link becomes an `@` path:
 
 ```text
 See @~/Vaults/notes/Work/Design.md for the limits.
 ```
 
-Claude Code opens those files on demand, so the clipboard payload stays small no matter how much your notes link to. Paths with spaces are backtick-wrapped — `` `@~/Vaults/Kubernetes notes.md` `` — because bare, they parse as a path plus a stray word.
+The agent opens those files on demand, so the clipboard payload stays small no matter how much your notes link to. Paths with spaces are backtick-wrapped — `` `@~/Vaults/Kubernetes notes.md` `` — because bare, they parse as a path plus a stray word.
 
-> [!NOTE] Claude Code only reads inside its working directory
-> If you run it somewhere other than the vault, `/add-dir ~/Vaults` first, or switch **Path style** to vault-relative and run it from the vault root.
+> [!NOTE] Agents only read inside their working directory
+> Point the tool at the vault, either with its directory flag (see below) or by running it from the vault root with **Path style** set to vault-relative.
 
 **Self-contained mode** targets a browser chat, where a path is a dead reference. Links collapse to their display text, `![[embeds]]` are inlined as fenced sections to a configurable depth, and images become named placeholders plus a manifest of what to attach.
 
@@ -42,6 +42,21 @@ In paths mode images are just more `@` paths — Claude Code reads image files n
 Frontmatter, `#tags`, `%%Obsidian comments%%`, and Dataview/Templater blocks are stripped by default, each independently toggleable. Comments matter most: they're private by convention and never render, so they're easy to forget about until one is already in a chat window.
 
 Tags and frontmatter are removed using Obsidian's metadata cache rather than pattern matching, so a `#` in a heading or a code span is never mistaken for a tag.
+
+### Copying a CLI command
+
+**Copy as CLI command** produces a ready-to-paste shell command with the note as its prompt, its frontmatter as flags, and the vault made reachable:
+
+```bash
+claude --add-dir ~/Vaults/notes --model opus --effort high 'Review this: @~/Vaults/notes/Work/Design.md'
+codex --cd ~/Vaults/notes --model opus 'Review this: @Work/Design.md'
+```
+
+The tool is a setting, not an assumption. Pick one under **Settings → CLI command → Tool** and it fills in the executable, subcommand, directory flag, forwarded frontmatter keys, path style, and the names offered by autocomplete — all of which stay editable. Claude Code, Codex, Gemini, and Copilot ship as starting points; anything else, including a wrapper script of your own, is configured through the same fields.
+
+The differences between tools are real and the profiles encode them: Claude Code's `--add-dir` grants access to a directory without moving you, so paths must be absolute; Codex's `--cd` makes the vault the working directory, so vault-relative paths are shorter and absolute ones would just repeat it.
+
+Which frontmatter keys become flags is an allowlist, because ordinary Obsidian properties like `tags` and `aliases` would otherwise become flags your tool rejects. A key set to `true` becomes a bare flag; a list repeats the flag.
 
 ### Where you can run it
 

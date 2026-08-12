@@ -31,6 +31,12 @@ export type NoteBody = {
    * is exactly the distinction a regex gets wrong.
    */
   cacheEdits: Edit[];
+  /**
+   * True when the cache could not be reconciled with the text, so some link may
+   * be unaccounted for. Only matters when exclusion rules are configured: an
+   * unaccounted link could be one pointing at a note that must be withheld.
+   */
+  uncertain?: boolean | undefined;
 };
 
 /** A single link or embed, located in its source note. */
@@ -114,6 +120,11 @@ export function sliceBody(body: NoteBody, start: number, end: number): NoteBody 
     content: body.content.slice(start, end),
     references: body.references
       .filter((item) => item.end > start && item.start < end)
+      // A clipped reference keeps its full `original`, and an unresolved one
+      // renders as exactly that — so clipping it emitted note text from outside
+      // the selection, sometimes from before its start. Resolved and excluded
+      // targets render to something self-contained and clip safely.
+      .filter((item) => item.target !== null || (item.start >= start && item.end <= end))
       .map((item) => ({
         ...item,
         start: Math.max(item.start, start) - start,

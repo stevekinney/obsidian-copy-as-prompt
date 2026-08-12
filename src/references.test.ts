@@ -128,3 +128,26 @@ describe('editFor', () => {
     });
   });
 });
+
+describe('clipping a reference that would render as its original text', () => {
+  const content = 'Call [[Divorce lawyer tomorrow]] ok';
+  const unresolved = refAt(content, '[[Divorce lawyer tomorrow]]', { target: null });
+  const body = { content, references: [unresolved], cacheEdits: [] };
+
+  it('drops it rather than emitting text from outside the selection', () => {
+    // An unresolved link renders as its full `original`, so clipping it emitted
+    // more than the user selected — in one direction, text from before the
+    // selection even started.
+    expect(sliceBody(body, 0, 14).references).toEqual([]);
+    expect(sliceBody(body, 22, 35).references).toEqual([]);
+  });
+
+  it('still clips one whose target resolves, since that renders self-contained', () => {
+    const resolved = refAt(content, '[[Divorce lawyer tomorrow]]', {
+      target: target({ vaultPath: 'Personal/Divorce lawyer.md', excluded: true }),
+    });
+    const sliced = sliceBody({ ...body, references: [resolved] }, 22, 35);
+
+    expect(renderAsPath(sliced.references[0]!)).toBe('[excluded]');
+  });
+});

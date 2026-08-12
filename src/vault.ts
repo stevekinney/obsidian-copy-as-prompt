@@ -15,7 +15,6 @@ import type { Edit } from './edits.js';
 import { isExcluded, redactionEdits, type ExclusionRules } from './exclusions.js';
 import { displayPath, type PathStyle } from './paths.js';
 import type { NoteBody, NoteReference, ResolvedTarget } from './references.js';
-import { scanWikilinks } from './wikilinks.js';
 import type { RenderableNote } from './render.js';
 
 /**
@@ -189,6 +188,63 @@ function resolveReference(
   };
 }
 
+/**
+ * Move cached references onto the text they actually describe.
+ *
+ * Offsets come from the metadata cache, which describes the file as last
+ * parsed; unsaved edits above a link move everything below it. Rewriting at a
+ * stale offset corrupts whatever now sits there, so each reference is located
+ * by its own recorded text instead, searching forward from the last one placed.
+ *
+ * This replaces an earlier attempt that rescanned the whole note with a regex.
+ * That dropped markdown-style `[text](path.md)` links entirely — which the
+ * cache does index — leaking a full vault path, and it rewrote links inside
+ * code fences, which the cache correctly ignores. Re-anchoring keeps both
+ * properties for free.
+ */
+function reanchor(
+  references: readonly NoteReference[],
+  content: string,
+): { references: NoteReference[]; uncertain: boolean } {
+  const placed: NoteReference[] = [];
+  let cursor = 0;
+  let uncertain = false;
+
+  for (const item of references) {
+    if (content.slice(item.start, item.end) === item.original) {
+      placed.push(item);
+      cursor = Math.max(cursor, item.end);
+      continue;
+    }
+
+    const found = content.indexOf(item.original, cursor);
+
+    if (found < 0) {
+      uncertain = true;
+      continue;
+    }
+
+    placed.push({ ...item, start: found, end: found + item.original.length });
+    cursor = found + item.original.length;
+  }
+
+  return { references: placed, uncertain };
+}
+
+/**
+ * Whether the text holds a link the cache never told us about.
+ *
+ * Re-anchoring only fixes links that *moved*. Typing a new one below every
+ * existing link shifts nothing, so every cached offset still validates and the
+ * new link is simply absent — which is the likelier half of the cases, and the
+ * one where an excluded note's name would go out unwitnessed.
+ */
+function hasUnaccountedLinks(content: string, references: readonly NoteReference[]): boolean {
+  return [...content.matchAll(/\[\[/g)].some(
+    (match) => !references.some((item) => match.index >= item.start && match.index < item.end),
+  );
+}
+
 async function resolveBody(
   app: App,
   file: TFile,
@@ -204,22 +260,18 @@ async function resolveBody(
   // Links and embeds render identically, so they need no distinction here.
   const items = [...(cache?.links ?? []), ...(cache?.embeds ?? [])];
 
-  const cached = items.map((item) => resolveReference(app, file, item, options));
+  const cached = items
+    .map((item) => resolveReference(app, file, item, options))
+    .toSorted((a, b) => a.start - b.start);
 
-  // Every offset here comes from the metadata cache, which describes the file
-  // as last parsed. Unsaved edits above a link move it, and rewriting at a
-  // stale offset corrupts whatever now sits there.
-  const stale = cached.some((item) => content.slice(item.start, item.end) !== item.original);
+  const { references, uncertain } = reanchor(cached, content);
 
-  // Dropping the stale ones was the obvious response and the wrong one: a link
-  // left untouched prints its target's filename, and for an excluded note that
-  // is exactly what `[excluded]` exists to withhold. Rescanning finds them
-  // where they actually are, at the cost of also matching inside code fences.
-  const references = stale
-    ? scanWikilinks(content, 0, (linkpath) => resolveTarget(app, file, linkpath, options))
-    : cached;
-
-  return { content, references, cacheEdits: cacheEdits(content, cache, options) };
+  return {
+    content,
+    references,
+    cacheEdits: cacheEdits(content, cache, options),
+    uncertain: uncertain || hasUnaccountedLinks(content, references),
+  };
 }
 
 /**

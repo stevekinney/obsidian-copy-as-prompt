@@ -14,7 +14,12 @@ import type { NoteReference, ResolvedTarget } from './references.js';
  * untouched link to an excluded note prints the filename that the `[excluded]`
  * placeholder exists to withhold.
  */
-const WIKILINK = /!?\[\[([^\]|#]+)(?:#([^\]|]+))?(?:\|[^\]]*)?\]\]/g;
+// Newlines are excluded from every group on purpose: `[^\]|#]+` matches them,
+// so a stray unclosed `[[` swallowed everything up to the next real link and
+// emitted it whole — including the name of a note that should have been
+// withheld. A wikilink does not span lines, so refusing to match across one
+// costs nothing.
+const WIKILINK = /!?\[\[([^\]|#\n]+)(?:#([^\]|\n]+))?(?:\|[^\]\n]*)?\]\]/g;
 
 /** Resolves a link path against the vault. */
 export type TargetResolver = (linkpath: string) => ResolvedTarget | null;

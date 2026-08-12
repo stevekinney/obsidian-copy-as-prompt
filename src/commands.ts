@@ -230,8 +230,31 @@ export class PromptCopier {
     }
   }
 
+  /**
+   * Whether the cache is too far behind the text to honour exclusion rules.
+   *
+   * Only asked when rules exist, because the risk is specific: a link the cache
+   * does not account for might point at a note that must be withheld, and it
+   * would go out as raw `[[text]]` — the filename the placeholder exists to
+   * hide. With no rules configured there is nothing to fail open about, so the
+   * copy proceeds and an unaccounted link simply stays a wikilink.
+   */
+  private tooStale(notes: RenderableNote[], rules: ExclusionRules): boolean {
+    const guarding = rules.tags.length > 0 || rules.folders.length > 0;
+
+    if (!guarding || !notes.some((note) => note.body.uncertain)) return false;
+
+    new Notice(
+      'Save this note first — it has links Obsidian has not indexed yet, so exclusion rules cannot be applied to them.',
+    );
+
+    return true;
+  }
+
   /** Render, optionally show it for review, then copy. */
   private async deliver(notes: RenderableNote[]): Promise<void> {
+    if (this.tooStale(notes, this.exclusions())) return;
+
     const text = render(notes, this.renderOptions());
 
     // An empty write clears the clipboard and reports success, which destroys

@@ -138,3 +138,26 @@ describe('wikilinks written into canvas prose', () => {
     expect(reference?.anchor).toBe('Limits');
   });
 });
+
+describe('malformed wikilinks in canvas prose', () => {
+  it('does not let an unclosed [[ swallow the next real link', () => {
+    // The scanner fires on text nobody has validated, and group 1 used to match
+    // newlines — so a stray `[[` absorbed everything up to the next link and
+    // emitted it whole, including a name that should have been withheld.
+    const sections: CanvasSection[] = [
+      { label: null, items: [{ kind: 'text', text: 'Draft [[\n\nSee [[A]] here.' }] },
+    ];
+    const body = buildCanvasBody(sections, resolve);
+
+    expect(body.references).toHaveLength(1);
+    expect(body.references[0]?.original).toBe('[[A]]');
+  });
+
+  it('ignores an empty link', () => {
+    const sections: CanvasSection[] = [
+      { label: null, items: [{ kind: 'text', text: 'x [[]] y' }] },
+    ];
+
+    expect(buildCanvasBody(sections, resolve).references).toEqual([]);
+  });
+});

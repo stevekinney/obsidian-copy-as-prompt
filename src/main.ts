@@ -92,7 +92,7 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
 
     this.addCommand({
       id: 'copy-note-path',
-      name: 'Copy note path only',
+      name: 'Copy as prompt reference',
       checkCallback: (checking) => {
         const file = this.activeNote();
 
@@ -159,6 +159,14 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
 
     if (file) this.addItem(menu, 'Copy as prompt', () => this.copyNotes([file]));
 
+    if (file) {
+      this.addItem(
+        menu,
+        'Copy as prompt reference',
+        () => void this.copier.attempt(() => this.copier.copyPath(file)),
+      );
+    }
+
     if (editor.somethingSelected()) {
       this.addItem(
         menu,
@@ -190,6 +198,20 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
     const title = notes.length === 1 ? 'Copy as prompt' : `Copy ${notes.length} notes as prompt`;
 
     this.addItem(menu, title, () => this.copyNotes(notes));
+
+    // An `@` reference is to one file, so — like embedded images below — this
+    // only makes sense for a single-note selection.
+    if (notes.length === 1) {
+      const [note] = notes;
+
+      if (note) {
+        this.addItem(
+          menu,
+          'Copy as prompt reference',
+          () => void this.copier.attempt(() => this.copier.copyPath(note)),
+        );
+      }
+    }
 
     // Embedded images are gathered per note, so the entry only makes sense for
     // a single file — a multi-note selection keeps just the text copy above.

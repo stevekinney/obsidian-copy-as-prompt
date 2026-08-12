@@ -17,25 +17,21 @@ The agent opens those files on demand, so the clipboard payload stays small no m
 > [!NOTE] Agents only read inside their working directory
 > Point the tool at the vault, either with its directory flag (see below) or by running it from the vault root with **Path style** set to vault-relative.
 
-**Self-contained mode** targets a browser chat, where a path is a dead reference. Links collapse to their display text, `![[embeds]]` are inlined as fenced sections to a configurable depth, and images become named placeholders plus a manifest of what to attach.
-
 ### What happens to each kind of link
 
-| In the note                      | Paths mode                           | Self-contained           |
-| -------------------------------- | ------------------------------------ | ------------------------ |
-| `[[Design]]`                     | `@~/…/Design.md`                     | `Design`                 |
-| `[[Design\|the contract]]`       | `@~/…/Design.md`                     | `the contract`           |
-| `[[Design#Rate limits]]`         | `@~/…/Design.md (see "Rate limits")` | `Design`                 |
-| `![[Design]]`                    | `@~/…/Design.md`                     | the note's text, inlined |
-| `![[diagram.png]]`               | `@~/…/diagram.png`                   | `[image: diagram.png]`   |
-| `[[Note never written]]`         | unchanged                            | unchanged                |
-| `[[Design]]` inside a code fence | unchanged                            | unchanged                |
+| In the note                      | Becomes                              |
+| -------------------------------- | ------------------------------------ |
+| `[[Design]]`                     | `@~/…/Design.md`                     |
+| `[[Design\|the contract]]`       | `@~/…/Design.md`                     |
+| `[[Design#Rate limits]]`         | `@~/…/Design.md (see "Rate limits")` |
+| `![[Design]]`                    | `@~/…/Design.md`                     |
+| `![[diagram.png]]`               | `@~/…/diagram.png`                   |
+| `[[Note never written]]`         | unchanged                            |
+| `[[Design]]` inside a code fence | unchanged                            |
 
 Unresolved links keep their `[[brackets]]` on purpose: emitting a path for a file that doesn't exist sends the model chasing something that isn't there.
 
-### Images
-
-In paths mode images are just more `@` paths — Claude Code reads image files natively. In self-contained mode they can't be inlined, so **Copy referenced images** puts the image _files_ on the clipboard and one paste attaches all of them at once. That uses a macOS pasteboard type Electron doesn't officially support for this, so the write is read back and verified; when it fails, or you're not on macOS, the command falls back to copying one image per run and tells you where it's up to.
+**Link depth** follows links outward a configurable number of hops and lists everything it reaches under a `## Related notes` heading, as paths rather than as text.
 
 ### What gets removed
 
@@ -60,9 +56,9 @@ Which frontmatter keys become flags is an allowlist, because ordinary Obsidian p
 
 ### Where you can run it
 
-Six commands (active note and selection, in each mode; path only; referenced images), plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count — it's one keystroke from a 500-note clipboard.
+Four commands — copy the note, the current selection, a canvas, or just the note's path — plus right-click entries on a note, a multi-file selection, a folder, and an editor selection. Copying a folder concatenates every note in it, and asks first above a configurable count, since it's one keystroke from a 500-note clipboard.
 
-Paths-mode commands hide themselves on mobile, where there's no filesystem path to emit. Self-contained mode works everywhere.
+Paths need a filesystem location, so this is desktop-only in practice; the commands hide themselves on mobile rather than emitting something that looks like a path and isn't.
 
 ## Installing
 

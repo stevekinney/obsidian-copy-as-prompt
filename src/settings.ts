@@ -18,8 +18,6 @@ export type PluginSettings = {
   template: string;
   /** Whether paths are absolute (`~/…`) or relative to the vault root. */
   pathStyle: PathStyle;
-  /** How many levels of `![[embeds]]` to inline in self-contained mode. */
-  embedDepth: number;
   /** Whether to wrap the note body in a Markdown code fence. */
   fenceContent: boolean;
   /** Whether to lead the prompt with a line naming the source note. */
@@ -42,8 +40,6 @@ export type PluginSettings = {
   excludeFolders: string;
   /** Regular expressions blanked out of any included note. */
   redactPatterns: string;
-  /** Which output modes appear in context menus. */
-  menuModes: MenuModes;
   /** When to show the prompt for review before it reaches the clipboard. */
   previewMode: PreviewMode;
   /** With `previewMode: 'large'`, the estimated token count that triggers review. */
@@ -52,40 +48,7 @@ export type PluginSettings = {
   nameExcluded: boolean;
   /** Override the vault location that emitted paths are built from. */
   pathPrefix: string;
-  /** File extensions treated as images. */
-  imageExtensions: string;
-  /** Attempt the macOS one-paste-attaches-all path for images. */
-  attachImageFiles: boolean;
-  /** The built-in profile last applied, shown in the picker. */
-  cliProfile: string;
-  /** The executable the CLI command starts with. */
-  cliCommand: string;
-  /** A subcommand between the executable and its flags. Often empty. */
-  cliSubcommand: string;
-  /** Flag names offered by autocompletion, for whichever tool is configured. */
-  cliKnownFlags: string;
-  /** Frontmatter keys forwarded to the CLI as `--key value`. */
-  cliForwardKeys: string;
-  /** Whether the CLI command grants the session access to the vault. */
-  cliAddVaultDir: boolean;
-  /** The flag name granting directory access, without dashes. */
-  cliAddDirFlag: string;
-  /** Arguments always included, inserted verbatim. */
-  cliExtraArguments: string;
-  /** Prompt length beyond which the command switches to a heredoc. */
-  cliArgumentLimit: number;
 };
-
-/**
- * Which output modes are offered on context menus.
- *
- * Scoped to menus on purpose. Commands stay registered whatever this says, so
- * an existing hotkey keeps working and nothing becomes unreachable — this only
- * decides what takes up space on a menu you did not go looking through.
- */
-export type MenuModes = 'both' | 'paths' | 'self-contained';
-
-const MENU_MODES: readonly MenuModes[] = ['both', 'paths', 'self-contained'];
 
 /** When the review modal appears. */
 export type PreviewMode = 'never' | 'large' | 'always';
@@ -96,7 +59,6 @@ const PREVIEW_MODES: readonly PreviewMode[] = ['never', 'large', 'always'];
 export const DEFAULT_SETTINGS: PluginSettings = {
   template: '{{content}}',
   pathStyle: 'absolute',
-  embedDepth: 1,
   fenceContent: false,
   includeHeader: true,
   stripFrontmatter: true,
@@ -108,27 +70,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   excludeTags: '',
   excludeFolders: '',
   redactPatterns: '',
-  menuModes: 'both',
   previewMode: 'never',
   previewThreshold: 8000,
   nameExcluded: false,
   pathPrefix: '',
-  imageExtensions: 'png, jpg, jpeg, gif, bmp, svg, webp, avif',
-  attachImageFiles: true,
-  cliProfile: 'claude',
-  cliCommand: 'claude',
-  cliSubcommand: '',
-  cliKnownFlags:
-    'add-dir, agent, allowed-tools, append-system-prompt, disallowed-tools, effort, fallback-model, fork-session, max-budget-usd, max-turns, mcp-config, model, output-format, permission-mode, print, resume, session-id, settings, system-prompt, tools',
-  cliForwardKeys: 'model, effort',
-  cliAddVaultDir: true,
-  cliAddDirFlag: 'add-dir',
-  cliExtraArguments: '',
-  cliArgumentLimit: 100_000,
 };
-
-/** The largest embed depth the settings UI will accept. */
-export const MAX_EMBED_DEPTH = 5;
 
 /**
  * The largest link depth the settings UI will accept.
@@ -164,15 +110,6 @@ export type StringSettingKey = {
 export type NumberSettingKey = {
   [K in keyof PluginSettings]: number extends PluginSettings[K] ? K : never;
 }[keyof PluginSettings];
-
-function isMenuModes(value: unknown): value is MenuModes {
-  return MENU_MODES.some((mode) => mode === value);
-}
-
-/** Narrow a dropdown's string back to the union, falling back to the default. */
-export function toMenuModes(value: unknown): MenuModes {
-  return isMenuModes(value) ? value : DEFAULT_SETTINGS.menuModes;
-}
 
 function isPathStyle(value: unknown): value is PathStyle {
   return PATH_STYLES.some((style) => style === value);
@@ -227,7 +164,6 @@ export function parseSettings(source: unknown): PluginSettings {
   return {
     template: text('template'),
     pathStyle: isPathStyle(record['pathStyle']) ? record['pathStyle'] : DEFAULT_SETTINGS.pathStyle,
-    embedDepth: counted('embedDepth', MAX_EMBED_DEPTH),
     folderNoteLimit: counted('folderNoteLimit', Number.MAX_SAFE_INTEGER),
     fenceContent: boolean('fenceContent'),
     includeHeader: boolean('includeHeader'),
@@ -239,22 +175,10 @@ export function parseSettings(source: unknown): PluginSettings {
     excludeTags: text('excludeTags'),
     excludeFolders: text('excludeFolders'),
     redactPatterns: text('redactPatterns'),
-    menuModes: isMenuModes(record['menuModes']) ? record['menuModes'] : DEFAULT_SETTINGS.menuModes,
     previewMode: toPreviewMode(record['previewMode'] ?? record['previewBeforeCopy']),
     previewThreshold: counted('previewThreshold', Number.MAX_SAFE_INTEGER),
     nameExcluded: boolean('nameExcluded'),
     pathPrefix: text('pathPrefix'),
-    imageExtensions: text('imageExtensions'),
-    attachImageFiles: boolean('attachImageFiles'),
-    cliProfile: text('cliProfile'),
-    cliCommand: text('cliCommand'),
-    cliSubcommand: text('cliSubcommand'),
-    cliKnownFlags: text('cliKnownFlags'),
-    cliForwardKeys: text('cliForwardKeys'),
-    cliAddVaultDir: boolean('cliAddVaultDir'),
-    cliAddDirFlag: text('cliAddDirFlag'),
-    cliExtraArguments: text('cliExtraArguments'),
-    cliArgumentLimit: counted('cliArgumentLimit', Number.MAX_SAFE_INTEGER),
   };
 }
 

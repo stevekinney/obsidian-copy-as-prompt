@@ -1,11 +1,10 @@
 /**
  * Turning vault paths into references a model can act on.
  *
- * The target format is Claude Code's `@` mention. Two details matter more than
- * they look like they should: paths are absolute so they resolve from any
- * working directory, and paths containing spaces are wrapped in backticks —
- * `@~/Vaults/Kubernetes notes.md` otherwise parses as a path followed by a
- * stray word, and Obsidian note titles have spaces constantly.
+ * `@` is the mention syntax coding agents share, so it is fixed rather than
+ * configurable. Paths containing whitespace are wrapped in backticks: bare,
+ * `@~/Vaults/Kubernetes notes.md` parses as a path followed by a stray word,
+ * and Obsidian note titles have spaces constantly.
  */
 
 /**

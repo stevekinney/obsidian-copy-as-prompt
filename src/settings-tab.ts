@@ -8,7 +8,6 @@ import {
   type StringSettingKey,
 } from './settings.js';
 import { renderAdvancedSettings, renderBehaviorSettings } from './settings-behavior.js';
-import { renderCliSettings } from './settings-cli.js';
 import {
   renderCleanupSettings,
   renderContextSettings,
@@ -24,7 +23,7 @@ const LIST_ROWS = 3;
 type Host = SettingsHost & Plugin;
 
 /** The numeric settings, which share one input treatment. */
-type NumberKey = 'previewThreshold' | 'cliArgumentLimit' | 'folderNoteLimit';
+type NumberKey = 'previewThreshold' | 'folderNoteLimit';
 
 /**
  * The plugin's settings pane.
@@ -140,7 +139,6 @@ export class CopyAsPromptSettingTab extends PluginSettingTab {
     renderPrivacySettings(section);
     renderCleanupSettings(section);
     renderFileSettings(section);
-    renderCliSettings(section);
     renderBehaviorSettings(section);
     renderAdvancedSettings(section);
 

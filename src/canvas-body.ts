@@ -67,11 +67,6 @@ export function buildCanvasBody(
         end: start + original.length,
         original,
         anchor: item.subpath?.replace(/^#/, ''),
-        // A canvas displays the note's content in place, so a file node is an
-        // embed, not a link. Self-contained mode inlines it; paths mode still
-        // emits an @path.
-        embed: true,
-        displayText: undefined,
         target: resolve(item.file),
       });
     });

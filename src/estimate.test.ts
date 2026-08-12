@@ -37,18 +37,14 @@ describe('compact', () => {
 
 describe('describe', () => {
   it('summarizes tokens and notes', () => {
-    expect(describeSize(measure('x'.repeat(16_800), 3, 0))).toBe('~4.2k tokens · 3 notes');
-  });
-
-  it('mentions images when there are any', () => {
-    expect(describeSize(measure('abcd', 1, 2))).toBe('~1 tokens · 1 note · 2 images');
+    expect(describeSize(measure('x'.repeat(16_800), 3))).toBe('~4.2k tokens · 3 notes');
   });
 
   it('singularizes a lone note', () => {
-    expect(describeSize(measure('abcd', 1, 0))).toBe('~1 tokens · 1 note');
+    expect(describeSize(measure('abcd', 1))).toBe('~1 tokens · 1 note');
   });
 
   it('reports the raw character count too', () => {
-    expect(measure('abcd', 1, 0)).toEqual({ characters: 4, tokens: 1, notes: 1, images: 0 });
+    expect(measure('abcd', 1)).toEqual({ characters: 4, tokens: 1, notes: 1 });
   });
 });

@@ -1,6 +1,6 @@
 import { Setting } from 'obsidian';
 
-import { toMenuModes, toPreviewMode } from './settings.js';
+import { toPreviewMode } from './settings.js';
 import type { SettingsSection } from './settings-shared.js';
 
 /**
@@ -12,23 +12,7 @@ import type { SettingsSection } from './settings-shared.js';
 export function renderBehaviorSettings(section: SettingsSection): void {
   const { containerEl, host } = section;
 
-  section.heading('Menus and confirmation');
-
-  new Setting(containerEl)
-    .setName('Context menu entries')
-    .setDesc(
-      'Which output modes appear on right-click menus. Commands stay in the palette either way, so hotkeys keep working.',
-    )
-    .addDropdown((dropdown) =>
-      dropdown
-        .addOption('both', 'Both modes')
-        .addOption('paths', 'Only @paths')
-        .addOption('self-contained', 'Only self-contained')
-        .setValue(host.settings.menuModes)
-        .onChange(async (value) => {
-          await section.persist('menuModes', toMenuModes(value));
-        }),
-    );
+  section.heading('Confirmation and review');
 
   new Setting(containerEl)
     .setName('Review before copying')
@@ -76,37 +60,9 @@ export function renderAdvancedSettings(section: SettingsSection): void {
   );
 
   section.list(
-    'imageExtensions',
-    'Image extensions',
-    'Treated as images rather than generic attachments. Add heic for iPhone screenshots.',
-    'png, jpg, heic',
-  );
-
-  section.list(
     'redactPatterns',
     'Redact patterns',
     'Regular expressions replaced with [redacted] in any included note. An invalid pattern is skipped.',
     String.raw`\d{3}-\d{2}-\d{4}`,
-  );
-
-  section.text(
-    'cliAddDirFlag',
-    'CLI directory flag',
-    'The flag that grants or sets directory access, without dashes. Claude Code uses add-dir; Codex uses cd.',
-    'add-dir',
-  );
-
-  section.list(
-    'cliKnownFlags',
-    'CLI flag names',
-    "Offered by autocompletion when forwarding frontmatter keys. Paste more from your tool's --help.",
-    'model, effort',
-  );
-
-  section.number(
-    'cliArgumentLimit',
-    'Switch to a heredoc above',
-    'Prompt characters. Command-line limits differ by platform — roughly 256KB on macOS, far more on Linux, far less on Windows.',
-    1,
   );
 }

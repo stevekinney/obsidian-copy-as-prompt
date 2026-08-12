@@ -18,7 +18,6 @@ export type PromptSize = {
   characters: number;
   tokens: number;
   notes: number;
-  images: number;
 };
 
 /** Estimate the token count of a string. */
@@ -27,8 +26,8 @@ export function estimateTokens(text: string): number {
 }
 
 /** Measure a rendered prompt. */
-export function measure(text: string, notes: number, images: number): PromptSize {
-  return { characters: text.length, tokens: estimateTokens(text), notes, images };
+export function measure(text: string, notes: number): PromptSize {
+  return { characters: text.length, tokens: estimateTokens(text), notes };
 }
 
 /** Round to a compact human figure: `840`, `4.2k`, `128k`. */
@@ -48,12 +47,8 @@ function count(total: number, noun: string): string {
  * A one-line summary of a prompt's size.
  *
  * @param size - The measured prompt.
- * @returns Something like `~4.2k tokens · 3 notes · 2 images`.
+ * @returns Something like `~4.2k tokens · 3 notes`.
  */
 export function describe(size: PromptSize): string {
-  const parts = [`~${compact(size.tokens)} tokens`, count(size.notes, 'note')];
-
-  if (size.images > 0) parts.push(count(size.images, 'image'));
-
-  return parts.join(' · ');
+  return `~${compact(size.tokens)} tokens · ${count(size.notes, 'note')}`;
 }

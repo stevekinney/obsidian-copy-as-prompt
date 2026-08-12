@@ -13,28 +13,27 @@ import { organizeCanvas, parseCanvas } from './canvas.js';
 import { homeDirectory } from './desktop.js';
 import type { Edit } from './edits.js';
 import { isExcluded, redactionEdits, type ExclusionRules } from './exclusions.js';
-import { absolutePath, displayPath, type PathStyle } from './paths.js';
-import type { NoteBody, NoteReference, ResolvedTarget, TargetKind } from './references.js';
+import { displayPath, type PathStyle } from './paths.js';
+import type { NoteBody, NoteReference, ResolvedTarget } from './references.js';
 import type { RenderableNote } from './render.js';
 
 /**
  * Turning Obsidian's world into the plain data the renderer consumes.
  *
- * This is the only module that touches the Vault, the metadata cache, or the
- * filesystem. It resolves every link, decides what each one points at, applies
- * exclusion rules, and loads bodies for embeds and traversal — then hands the
- * renderer a structure with no Obsidian types in it at all, which is what makes
- * the rendering testable.
+ * This is the only module that touches the Vault or the metadata cache. It
+ * resolves every link and applies exclusion rules, then hands the renderer a
+ * structure with no Obsidian types in it at all, which is what makes the
+ * rendering testable.
  */
 
 /** Where the vault lives on disk, and where to anchor `~`. */
 export type VaultContext = {
-  /** The vault's real location, used for filesystem work such as the clipboard. */
+  /** The vault's real location. */
   basePath: string;
   /**
    * The location emitted paths are built from. Usually the same as `basePath`,
    * but overridable for a reader that sees the vault somewhere else entirely —
-   * WSL, a devcontainer, the far end of an SSH session.
+   * WSL, a container, the far end of an SSH session.
    */
   displayBase: string;
   home: string;
@@ -46,13 +45,9 @@ export type ResolveOptions = {
   pathStyle: PathStyle;
   stripFrontmatter: boolean;
   stripTags: boolean;
-  /** How many levels of embeds to load. Zero means never inline. */
-  embedDepth: number;
-  /** How many hops of plain links to follow. Zero means none. */
+  /** How many hops of links to follow. Zero means none. */
   linkDepth: number;
   exclusions: ExclusionRules;
-  /** Lowercase extensions treated as images rather than generic attachments. */
-  imageExtensions: ReadonlySet<string>;
 };
 
 /**
@@ -72,12 +67,6 @@ export function vaultContext(app: App): VaultContext | null {
   return { basePath, displayBase: basePath, home: homeDirectory() };
 }
 
-function kindOf(file: TFile, images: ReadonlySet<string>): TargetKind {
-  if (file.extension === 'md') return 'note';
-
-  return images.has(file.extension.toLowerCase()) ? 'image' : 'attachment';
-}
-
 /** Whether exclusion rules withhold this file. */
 export function isFileExcluded(app: App, file: TFile, rules: ExclusionRules): boolean {
   const cache = app.metadataCache.getFileCache(file);
@@ -91,7 +80,6 @@ export function isFileExcluded(app: App, file: TFile, rules: ExclusionRules): bo
  *
  * The cache is what makes tag removal safe: it knows a `#tag` from a `#heading`
  * and from a `#` inside a code span, which no regex over the raw text does.
- * Redaction patterns are folded in here so they travel with everything else.
  */
 function cacheEdits(
   content: string,
@@ -129,93 +117,50 @@ function targetFor(app: App, destination: TFile, options: ResolveOptions): Resol
   return {
     vaultPath: destination.path,
     displayPath: displayPath(destination.path, options.context, options.pathStyle),
-    absolutePath: absolutePath(options.context.basePath, destination.path),
-    title: destination.basename,
-    kind: kindOf(destination, options.imageExtensions),
     excluded: isFileExcluded(app, destination, options.exclusions),
   };
 }
 
-function resolveTarget(
+/** Resolve a link's target, or null when it points at nothing. */
+export function resolveTarget(
   app: App,
-  file: TFile,
+  from: TFile,
   linkpath: string,
   options: ResolveOptions,
-): { file: TFile; target: ResolvedTarget } | null {
+): ResolvedTarget | null {
   if (!linkpath) return null;
 
-  const destination = app.metadataCache.getFirstLinkpathDest(linkpath, file.path);
+  const destination = app.metadataCache.getFirstLinkpathDest(linkpath, from.path);
 
-  if (!destination) return null;
-
-  return { file: destination, target: targetFor(app, destination, options) };
+  return destination ? targetFor(app, destination, options) : null;
 }
 
-async function resolveReference(
+function resolveReference(
   app: App,
   file: TFile,
   item: ReferenceCache,
-  embed: boolean,
   options: ResolveOptions,
-  depth: number,
-  visited: ReadonlySet<string>,
-): Promise<NoteReference> {
+): NoteReference {
   const { path, subpath } = parseLinktext(item.link);
-  const resolved = resolveTarget(app, file, path, options);
 
-  const base: NoteReference = {
+  return {
     start: item.position.start.offset,
     end: item.position.end.offset,
     original: item.original,
     anchor: subpath ? subpath.replace(/^#/, '') : undefined,
-    displayText: item.displayText,
-    embed,
-    target: resolved?.target ?? null,
+    target: resolveTarget(app, file, path, options),
   };
-
-  if (!resolved || !embed || resolved.target.kind !== 'note') return base;
-
-  // An excluded note is never loaded, so its text cannot reach the prompt even
-  // by accident.
-  if (resolved.target.excluded) return base;
-
-  // Depth and cycles are settled here rather than in the renderer: an embed we
-  // decline to expand simply arrives without a body, and renders as text.
-  if (depth >= options.embedDepth || visited.has(resolved.file.path)) return base;
-
-  const note = await resolveBody(
-    app,
-    resolved.file,
-    options,
-    depth + 1,
-    new Set([...visited, resolved.file.path]),
-  );
-
-  return { ...base, target: { ...resolved.target, note } };
 }
 
-async function resolveBody(
-  app: App,
-  file: TFile,
-  options: ResolveOptions,
-  depth: number,
-  visited: ReadonlySet<string>,
-): Promise<NoteBody> {
+async function resolveBody(app: App, file: TFile, options: ResolveOptions): Promise<NoteBody> {
   // `cachedRead` is the right call for read-only access — it serves the parsed
   // contents instead of hitting disk again.
   const content = await app.vault.cachedRead(file);
   const cache = app.metadataCache.getFileCache(file);
 
-  const items: { item: ReferenceCache; embed: boolean }[] = [
-    ...(cache?.links ?? []).map((item) => ({ item, embed: false })),
-    ...(cache?.embeds ?? []).map((item) => ({ item, embed: true })),
-  ];
-
-  const references = await Promise.all(
-    items.map(({ item, embed }) =>
-      resolveReference(app, file, item, embed, options, depth, visited),
-    ),
-  );
+  // Links and embeds render identically, so they need no distinction here.
+  const items = [...(cache?.links ?? []), ...(cache?.embeds ?? [])];
+  const references = items.map((item) => resolveReference(app, file, item, options));
 
   return { content, references, cacheEdits: cacheEdits(content, cache, options) };
 }
@@ -225,8 +170,8 @@ async function resolveBody(
  *
  * @param app - The Obsidian app.
  * @param file - The note to resolve.
- * @param options - Path style, cleanup toggles, exclusions, and depths.
- * @returns The note, its references, and every embed body loaded within depth.
+ * @param options - Path style, cleanup toggles, and exclusions.
+ * @returns The note and its resolved references.
  */
 export async function resolveNote(
   app: App,
@@ -237,7 +182,7 @@ export async function resolveNote(
     title: file.basename,
     vaultPath: file.path,
     displayPath: displayPath(file.path, options.context, options.pathStyle),
-    body: await resolveBody(app, file, options, 0, new Set([file.path])),
+    body: await resolveBody(app, file, options),
   };
 }
 
@@ -263,9 +208,7 @@ function linkedNotes(app: App, file: TFile): TFile[] {
  * Follow links outward from the chosen notes.
  *
  * Breadth-first so that depth means hops rather than branch order, and excluded
- * notes are dropped before their bodies are ever read. Reached notes are loaded
- * with `embedDepth: 0`: a note two hops away expanding its own embeds is how a
- * prompt quietly becomes a megabyte.
+ * notes are dropped before their bodies are ever read.
  *
  * @param app - The Obsidian app.
  * @param roots - The notes the user actually chose.
@@ -302,43 +245,13 @@ export async function resolveRelated(
     frontier = next;
   }
 
-  const shallow: ResolveOptions = { ...options, embedDepth: 0, linkDepth: 0 };
-
   return Promise.all(
-    reached.map(async (file) => ({ ...(await resolveNote(app, file, shallow)), related: true })),
+    reached.map(async (file) => ({ ...(await resolveNote(app, file, options)), related: true })),
   );
 }
 
 /**
- * Resolve one canvas file node, loading its body when it will be inlined.
- *
- * An excluded note is never read, so its text cannot reach the prompt even by
- * accident.
- */
-async function resolveCanvasTarget(
-  app: App,
-  canvas: TFile,
-  path: string,
-  options: ResolveOptions,
-): Promise<ResolvedTarget | null> {
-  const resolved = resolveTarget(app, canvas, path, options);
-
-  if (!resolved) return null;
-  if (resolved.target.excluded || resolved.target.kind !== 'note') return resolved.target;
-  if (options.embedDepth <= 0) return resolved.target;
-
-  const visited = new Set([canvas.path, resolved.file.path]);
-  const note = await resolveBody(app, resolved.file, options, 1, visited);
-
-  return { ...resolved.target, note };
-}
-
-/**
  * Resolve a canvas into a note the renderer can handle.
- *
- * Canvas file nodes are treated as embeds, because that is what a canvas shows:
- * the note's content, in place. Targets are resolved up front so the body can
- * be assembled by a pure function.
  *
  * @param app - The Obsidian app.
  * @param file - The `.canvas` file.
@@ -351,20 +264,11 @@ export async function resolveCanvas(
   options: ResolveOptions,
 ): Promise<RenderableNote> {
   const sections = organizeCanvas(parseCanvas(await app.vault.cachedRead(file)));
-  const targets = new Map<string, ResolvedTarget | null>();
-
-  const paths = sections.flatMap((section) =>
-    section.items.filter((item) => item.kind === 'file').map((item) => item.file),
-  );
-
-  for (const path of new Set(paths)) {
-    targets.set(path, await resolveCanvasTarget(app, file, path, options));
-  }
 
   return {
     title: file.basename,
     vaultPath: file.path,
     displayPath: displayPath(file.path, options.context, options.pathStyle),
-    body: buildCanvasBody(sections, (path) => targets.get(path) ?? null),
+    body: buildCanvasBody(sections, (path) => resolveTarget(app, file, path, options)),
   };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { refAt, target } from '../test/factories.js';
-import { basename, editFor, renderAsPath, renderAsText, sliceBody } from './references.js';
+import { editFor, renderAsPath, sliceBody } from './references.js';
 
 describe('renderAsPath', () => {
   it('renders a resolved link as an @ path', () => {
@@ -11,9 +11,10 @@ describe('renderAsPath', () => {
 
   it('discards alias text', () => {
     const content = 'See [[Design|the API contract]] for context';
-    const item = refAt(content, '[[Design|the API contract]]', { displayText: 'the API contract' });
 
-    expect(renderAsPath(item)).toBe('@~/Vaults/notes/Work/Design.md');
+    expect(renderAsPath(refAt(content, '[[Design|the API contract]]'))).toBe(
+      '@~/Vaults/notes/Work/Design.md',
+    );
   });
 
   it('backtick-wraps a path containing spaces', () => {
@@ -47,52 +48,23 @@ describe('renderAsPath', () => {
 
     expect(renderAsPath(item)).toBe('[[Note I never wrote]]');
   });
-});
 
-describe('renderAsText', () => {
-  it('uses the alias when there is one', () => {
-    const content = 'See [[Design|the API contract]]';
-    const item = refAt(content, '[[Design|the API contract]]', { displayText: 'the API contract' });
-
-    expect(renderAsText(item)).toBe('the API contract');
-  });
-
-  it('falls back to the target title', () => {
-    const content = 'See [[Design]]';
-    expect(renderAsText(refAt(content, '[[Design]]'))).toBe('Design');
-  });
-
-  it('names an image as a placeholder', () => {
-    const content = 'Look: ![[diagram.png]]';
-    const item = refAt(content, '![[diagram.png]]', {
-      target: target({ kind: 'image', vaultPath: 'attachments/diagram.png' }),
+  it('withholds an excluded note without naming it', () => {
+    const content = 'See [[Diary]]';
+    const item = refAt(content, '[[Diary]]', {
+      target: target({ vaultPath: 'Personal/Diary.md', excluded: true }),
     });
 
-    expect(renderAsText(item)).toBe('[image: diagram.png]');
+    expect(renderAsPath(item)).toBe('[excluded]');
   });
 
-  it('names a non-image attachment as a placeholder', () => {
-    const content = 'Read [[spec.pdf]]';
-    const item = refAt(content, '[[spec.pdf]]', {
-      target: target({ kind: 'attachment', vaultPath: 'attachments/spec.pdf' }),
+  it('names the excluded note when asked', () => {
+    const content = 'See [[Diary]]';
+    const item = refAt(content, '[[Diary]]', {
+      target: target({ vaultPath: 'Personal/Diary.md', excluded: true }),
     });
 
-    expect(renderAsText(item)).toBe('[attachment: spec.pdf]');
-  });
-
-  it('leaves an unresolved link exactly as written', () => {
-    const content = 'See [[Nowhere]]';
-    expect(renderAsText(refAt(content, '[[Nowhere]]', { target: null }))).toBe('[[Nowhere]]');
-  });
-});
-
-describe('basename', () => {
-  it('takes the last segment', () => {
-    expect(basename('attachments/nested/diagram.png')).toBe('diagram.png');
-  });
-
-  it('handles a path with no separator', () => {
-    expect(basename('diagram.png')).toBe('diagram.png');
+    expect(renderAsPath(item, true)).toBe('[excluded: Personal/Diary.md]');
   });
 });
 
@@ -136,6 +108,7 @@ describe('sliceBody', () => {
 describe('editFor', () => {
   it('turns a reference into an edit over its own range', () => {
     const content = 'See [[Design]] here';
+
     expect(editFor(refAt(content, '[[Design]]'), 'X')).toEqual({
       start: 4,
       end: 14,

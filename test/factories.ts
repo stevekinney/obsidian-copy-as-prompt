@@ -14,9 +14,6 @@ export function target(overrides: Partial<ResolvedTarget> = {}): ResolvedTarget 
   return {
     vaultPath: 'Work/Design.md',
     displayPath: '~/Vaults/notes/Work/Design.md',
-    absolutePath: '/Users/steve/Vaults/notes/Work/Design.md',
-    title: 'Design',
-    kind: 'note',
     ...overrides,
   };
 }
@@ -41,7 +38,6 @@ export function refAt(
     start,
     end: start + original.length,
     original,
-    embed: original.startsWith('!'),
     target: target(),
     ...overrides,
   };
@@ -66,7 +62,6 @@ export function note(bodyValue: NoteBody, overrides: Partial<RenderableNote> = {
 /** Render options defaulting to paths mode with a passthrough template. */
 export function options(overrides: Partial<RenderOptions> = {}): RenderOptions {
   return {
-    mode: 'paths',
     template: '{{content}}',
     fenceContent: false,
     includeHeader: false,

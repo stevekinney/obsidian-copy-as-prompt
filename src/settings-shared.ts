@@ -31,7 +31,7 @@ export type SettingsSection = {
   text(key: StringSettingKey, name: string, description: string, placeholder: string): void;
   /** A whole-number field, rejecting anything below `minimum`. */
   number(
-    key: 'previewThreshold' | 'cliArgumentLimit' | 'folderNoteLimit',
+    key: 'previewThreshold' | 'folderNoteLimit',
     name: string,
     description: string,
     minimum: number,

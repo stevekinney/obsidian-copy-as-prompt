@@ -4,8 +4,7 @@ import { target } from '../test/factories.js';
 import { buildCanvasBody } from './canvas-body.js';
 import type { CanvasSection } from './canvas.js';
 
-const resolve = (file: string) =>
-  file === 'missing.md' ? null : target({ vaultPath: file, title: file.replace(/\.md$/, '') });
+const resolve = (file: string) => (file === 'missing.md' ? null : target({ vaultPath: file }));
 
 describe('buildCanvasBody', () => {
   it('renders a text node as prose', () => {
@@ -98,14 +97,6 @@ describe('buildCanvasBody', () => {
     for (const reference of body.references) {
       expect(body.content.slice(reference.start, reference.end)).toBe(reference.original);
     }
-  });
-
-  it('treats a file node as an embed so self-contained mode inlines it', () => {
-    const sections: CanvasSection[] = [
-      { label: null, items: [{ kind: 'file', file: 'A.md', subpath: undefined }] },
-    ];
-
-    expect(buildCanvasBody(sections, resolve).references[0]?.embed).toBe(true);
   });
 
   it('produces an empty body for an empty canvas', () => {

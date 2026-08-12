@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { DEFAULT_SETTINGS, MAX_EMBED_DEPTH, parseSettings } from './settings.js';
+import { DEFAULT_SETTINGS, MAX_LINK_DEPTH, parseSettings } from './settings.js';
 
 describe('parseSettings', () => {
   it('returns defaults for a fresh install', () => {
@@ -15,6 +15,20 @@ describe('parseSettings', () => {
   it('keeps a valid stored blob', () => {
     const stored = { ...DEFAULT_SETTINGS, template: '{{title}}', stripTags: false };
     expect(parseSettings(stored)).toEqual(stored);
+  });
+
+  it('clamps a link depth above the maximum', () => {
+    // Traversal fans out, so an unbounded depth is a denial of service against
+    // your own clipboard.
+    expect(parseSettings({ linkDepth: 99 }).linkDepth).toBe(MAX_LINK_DEPTH);
+  });
+
+  it('truncates a fractional link depth', () => {
+    expect(parseSettings({ linkDepth: 2.7 }).linkDepth).toBe(2);
+  });
+
+  it('rejects a non-finite number', () => {
+    expect(parseSettings({ linkDepth: Number.NaN }).linkDepth).toBe(DEFAULT_SETTINGS.linkDepth);
   });
 
   it('fills in a field an older version never wrote', () => {
@@ -39,24 +53,6 @@ describe('parseSettings', () => {
     expect(parseSettings({ pathStyle: 'relative-to-cwd' }).pathStyle).toBe(
       DEFAULT_SETTINGS.pathStyle,
     );
-  });
-
-  it('clamps an embed depth above the maximum', () => {
-    // An unbounded depth on a densely linked vault is an accidental denial of
-    // service against your own clipboard.
-    expect(parseSettings({ embedDepth: 99 }).embedDepth).toBe(MAX_EMBED_DEPTH);
-  });
-
-  it('clamps a negative embed depth to zero', () => {
-    expect(parseSettings({ embedDepth: -3 }).embedDepth).toBe(0);
-  });
-
-  it('truncates a fractional embed depth', () => {
-    expect(parseSettings({ embedDepth: 2.7 }).embedDepth).toBe(2);
-  });
-
-  it('rejects a non-finite number', () => {
-    expect(parseSettings({ embedDepth: Number.NaN }).embedDepth).toBe(DEFAULT_SETTINGS.embedDepth);
   });
 
   it('keeps a custom folder note limit', () => {
@@ -92,36 +88,7 @@ describe('parseSettings migration and new fields', () => {
     expect(parseSettings({ pathPrefix: '/workspace/vault' }).pathPrefix).toBe('/workspace/vault');
   });
 
-  it('keeps a custom argument limit', () => {
-    expect(parseSettings({ cliArgumentLimit: 8000 }).cliArgumentLimit).toBe(8000);
-  });
-
-  it('falls back for a non-numeric argument limit', () => {
-    expect(parseSettings({ cliArgumentLimit: 'lots' }).cliArgumentLimit).toBe(
-      DEFAULT_SETTINGS.cliArgumentLimit,
-    );
-  });
-
-  it('defaults to attempting the macOS image path', () => {
-    expect(parseSettings({}).attachImageFiles).toBe(true);
-  });
-
   it('defaults to withholding the name of an excluded note', () => {
     expect(parseSettings({}).nameExcluded).toBe(false);
-  });
-});
-
-describe('parseSettings menu modes', () => {
-  it('defaults to offering both modes', () => {
-    expect(parseSettings({}).menuModes).toBe('both');
-  });
-
-  it('keeps a chosen mode', () => {
-    expect(parseSettings({ menuModes: 'paths' }).menuModes).toBe('paths');
-    expect(parseSettings({ menuModes: 'self-contained' }).menuModes).toBe('self-contained');
-  });
-
-  it('rejects an unknown value', () => {
-    expect(parseSettings({ menuModes: 'neither' }).menuModes).toBe(DEFAULT_SETTINGS.menuModes);
   });
 });

@@ -14,8 +14,8 @@ See @~/Vaults/notes/Work/Design.md for the limits.
 
 The agent opens those files on demand, so the clipboard payload stays small no matter how much your notes link to. Paths with spaces are backtick-wrapped — `` `@~/Vaults/Kubernetes notes.md` `` — because bare, they parse as a path plus a stray word.
 
-> [!NOTE] Agents only read inside their working directory
-> Point the tool at the vault, either with its directory flag (see below) or by running it from the vault root with **Path style** set to vault-relative.
+> [!NOTE]
+> Agents only read inside their working directory. Point the tool at the vault, either with its directory flag (see below) or by running it from the vault root with **Path style** set to vault-relative.
 
 ### What happens to each kind of link
 
@@ -125,8 +125,8 @@ bun run release patch    # or minor, major, or an explicit version
 git push --follow-tags
 ```
 
-> [!WARNING] Do not use `bun pm version`
-> It tags as `v1.0.0`, and Obsidian matches the release tag against `manifest.json` exactly — with no `v`. That tag produces a release nobody can install, and nothing fails until a user tries. `bun run release` bumps the version, syncs `manifest.json` and `versions.json`, and tags in the form Obsidian wants. If a `v`-prefixed tag is pushed anyway, the workflow still runs and fails immediately with an explanation rather than silently doing nothing.
+> [!WARNING]
+> Do not use `bun pm version`. It tags as `v1.0.0`, and Obsidian matches the release tag against `manifest.json` exactly — with no `v`. That tag produces a release nobody can install, and nothing fails until a user tries. `bun run release` bumps the version, syncs `manifest.json` and `versions.json`, and tags in the form Obsidian wants. If a `v`-prefixed tag is pushed anyway, the workflow still runs and fails immediately with an explanation rather than silently doing nothing.
 
 Pushing the tag triggers `.github/workflows/release.yaml`, which verifies all three versions agree, runs the full gate, attests build provenance, and creates a GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
 

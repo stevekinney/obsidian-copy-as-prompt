@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { applyEdits, rebaseEdits } from './edits.js';
+import { applyEdits, rebaseEdits, type Edit } from './edits.js';
 
 describe('applyEdits', () => {
   const source = 'one two three';
@@ -74,10 +74,13 @@ describe('rebaseEdits', () => {
     expect(rebaseEdits(edits, 10, 25)).toEqual([{ start: 0, end: 10, replacement: 'B' }]);
   });
 
-  it('drops an edit that straddles the window edge', () => {
-    // Half-rewriting a link the user only partly selected would emit broken
-    // syntax, so the whole reference has to be inside the selection.
-    expect(rebaseEdits(edits, 15, 40)).toEqual([{ start: 15, end: 25, replacement: 'C' }]);
+  it('clips an edit that straddles the window edge', () => {
+    // Dropping it left the straddled text in the slice, which for a link to an
+    // excluded note is the filename the placeholder exists to withhold.
+    expect(rebaseEdits(edits, 15, 40)).toEqual([
+      { start: 0, end: 5, replacement: 'B' },
+      { start: 15, end: 25, replacement: 'C' },
+    ]);
   });
 
   it('includes an edit flush against both bounds', () => {
@@ -139,9 +142,89 @@ describe('rebaseEdits with priority', () => {
     ]);
   });
 
-  it('still drops a straddling replacement that would break syntax', () => {
+  it('clips a straddling replacement rather than leaving its text behind', () => {
     const link = { start: 4, end: 26, replacement: '@path' };
 
-    expect(rebaseEdits([link], 8, 30)).toEqual([]);
+    expect(rebaseEdits([link], 8, 30)).toEqual([{ start: 0, end: 18, replacement: '@path' }]);
+  });
+});
+
+/**
+ * Deterministic pseudo-random source, so a failure is reproducible.
+ *
+ * This exists because ranking edits against each other leaked four times in a
+ * row, each time in a shape no hand-written example had covered. The property
+ * is the thing that actually matters: text a redaction or a deletion covers
+ * must not survive, whatever else is going on around it.
+ */
+function* randomEdits(seed: number): Generator<Edit[]> {
+  let state = seed;
+  const next = (bound: number): number => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+
+    return state % bound;
+  };
+
+  for (let round = 0; round < 4000; round += 1) {
+    const count = 1 + next(4);
+    const edits: Edit[] = [];
+
+    for (let index = 0; index < count; index += 1) {
+      const start = next(26);
+      const end = Math.min(26, start + 1 + next(12));
+      const kind = next(3);
+
+      edits.push(
+        kind === 0
+          ? { start, end, replacement: '' }
+          : kind === 1
+            ? { start, end, replacement: '#', priority: 1 }
+            : { start, end, replacement: '@' },
+      );
+    }
+
+    yield edits;
+  }
+}
+
+const SOURCE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+describe('applyEdits invariants under random input', () => {
+  it('never leaves text a redaction or deletion covered', () => {
+    for (const edits of randomEdits(7)) {
+      const output = applyEdits(SOURCE, edits);
+
+      const covered = new Set<string>();
+
+      for (const edit of edits) {
+        if (edit.replacement !== '' && (edit.priority ?? 0) === 0) continue;
+
+        for (let index = edit.start; index < edit.end; index += 1) covered.add(SOURCE[index]!);
+      }
+
+      for (const letter of covered) {
+        if (output.includes(letter)) {
+          throw new Error(
+            `"${letter}" survived: edits ${JSON.stringify(edits)} produced "${output}"`,
+          );
+        }
+      }
+    }
+  });
+
+  it('never emits a character the source did not contain', () => {
+    for (const edits of randomEdits(11)) {
+      const output = applyEdits(SOURCE, edits);
+
+      expect(output.replaceAll(/[#@]/g, '')).toMatch(/^[A-Z]*$/);
+    }
+  });
+
+  it('keeps the output ordered as the source was', () => {
+    for (const edits of randomEdits(13)) {
+      const letters = applyEdits(SOURCE, edits).replaceAll(/[^A-Z]/g, '');
+
+      expect(letters.split('').toSorted().join('')).toBe(letters);
+    }
   });
 });

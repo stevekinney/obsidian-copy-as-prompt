@@ -28,53 +28,91 @@ export type Edit = {
   priority?: number | undefined;
 };
 
-/** Whether `outer` completely covers `inner`. */
-function encloses(outer: Edit, inner: Edit): boolean {
-  return outer.start <= inner.start && inner.end <= outer.end;
+/** Whether two ranges share any character. */
+function overlaps(a: Edit, b: Edit): boolean {
+  return a.start < b.end && b.start < a.end;
 }
 
 /**
- * Resolve overlapping edits.
+ * Fuse overlapping deletions into their union.
  *
- * Two rules, and the order between them is the whole point.
- *
- * Containment first, but only when the container *deletes*: an edit fully
- * inside a deletion is dropped, whatever its priority, because the container
- * removes that text anyway. A redaction matching a key inside a frontmatter
- * block must not stop the block being stripped and emit the salary next to it.
- *
- * A container that replaces rather than deletes gets no such deference, because
- * it re-emits what it covers. A wikilink rewrite spanning a redacted phrase
- * would otherwise print that phrase back out as part of the path.
- *
- * Priority second, and only for partial overlaps: there nothing else deletes
- * the text, so a redaction that lost would leave behind exactly what it was
- * meant to remove.
+ * Two deletions that overlap both want their range gone, so the union is what
+ * they jointly asked for. Picking a winner instead leaves the loser's tail in
+ * the output — which is how an interleaved `%%comment%%` and `<% templater %>`
+ * used to emit half a private note.
  */
-function withoutOverlaps(edits: readonly Edit[]): Edit[] {
-  const outermost = edits.filter(
-    (edit, index) =>
-      !edits.some(
-        (other, otherIndex) =>
-          otherIndex !== index &&
-          other.replacement === '' &&
-          encloses(other, edit) &&
-          // Identical ranges enclose each other; keep whichever came first.
-          (!encloses(edit, other) || otherIndex < index),
-      ),
-  );
+function union(edits: readonly Edit[]): Edit[] {
+  const ordered = edits.toSorted((a, b) => a.start - b.start || a.end - b.end);
+  const merged: Edit[] = [];
 
-  const sorted = outermost.toSorted(
-    (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.start - b.start || b.end - a.end,
-  );
-  const kept: Edit[] = [];
+  for (const edit of ordered) {
+    const last = merged.at(-1);
 
-  for (const edit of sorted) {
-    // Priority ordering breaks left-to-right arrival, so every kept range has
-    // to be checked rather than just the last.
-    const clashes = kept.some((other) => edit.start < other.end && other.start < edit.end);
+    if (last && edit.start <= last.end) {
+      last.end = Math.max(last.end, edit.end);
+      continue;
+    }
 
-    if (!clashes) kept.push(edit);
+    merged.push({ ...edit });
+  }
+
+  return merged;
+}
+
+/** The parts of `edit` no range in `covers` already accounts for. */
+function subtract(edit: Edit, covers: readonly Edit[]): Edit[] {
+  let fragments: { start: number; end: number }[] = [{ start: edit.start, end: edit.end }];
+
+  for (const cover of covers) {
+    fragments = fragments.flatMap((fragment) => {
+      if (cover.end <= fragment.start || cover.start >= fragment.end) return [fragment];
+
+      const parts: { start: number; end: number }[] = [];
+
+      if (fragment.start < cover.start) parts.push({ start: fragment.start, end: cover.start });
+      if (cover.end < fragment.end) parts.push({ start: cover.end, end: fragment.end });
+
+      return parts;
+    });
+  }
+
+  return fragments.map((fragment) => ({ ...edit, ...fragment }));
+}
+
+/**
+ * Decide which edits survive, by what each kind of edit is for.
+ *
+ * Three previous versions of this ranked edits against each other and each one
+ * leaked, because ranking always discards a range somebody wanted removed. This
+ * ranks nothing. Every kind gets what it asked for, in the only order that is
+ * consistent:
+ *
+ * - **Deletions** always apply, unioned. Nothing outranks removing text.
+ * - **Redactions** apply to whatever a deletion has not already taken. A
+ *   redaction inside a deleted block is redundant, not defeated; one straddling
+ *   the edge keeps the part still standing.
+ * - **Rewrites** — a wikilink becoming a path — yield to both. A deletion
+ *   removes their text, and a redaction must never be re-emitted through one.
+ *
+ * The failure this replaces: the old pre-pass judged containment against the
+ * input set while the second phase judged survival against the kept set, so an
+ * edit could be dropped for a container that then lost and vanished, leaving
+ * nothing to remove the text. A fuzz run found that in 6% of random cases.
+ */
+function resolve(edits: readonly Edit[]): Edit[] {
+  const deletions = union(edits.filter((edit) => edit.replacement === ''));
+  const replacements = edits.filter((edit) => edit.replacement !== '');
+  const redactions = replacements
+    .filter((edit) => (edit.priority ?? 0) > 0)
+    .flatMap((edit) => subtract(edit, deletions));
+
+  const blocked = [...deletions, ...redactions];
+  const kept = [...blocked];
+
+  for (const rewrite of replacements
+    .filter((edit) => (edit.priority ?? 0) === 0)
+    .toSorted((a, b) => a.start - b.start || b.end - a.end)) {
+    if (!kept.some((other) => overlaps(other, rewrite))) kept.push(rewrite);
   }
 
   return kept;
@@ -88,7 +126,7 @@ function withoutOverlaps(edits: readonly Edit[]): Edit[] {
  * @returns The rewritten text.
  */
 export function applyEdits(source: string, edits: readonly Edit[]): string {
-  const ordered = withoutOverlaps(edits).toSorted((a, b) => b.start - a.start);
+  const ordered = resolve(edits).toSorted((a, b) => b.start - a.start);
 
   let result = source;
 
@@ -105,11 +143,11 @@ export function applyEdits(source: string, edits: readonly Edit[]): string {
  * The "copy selection" command hands us a slice of the note, but the metadata
  * cache's offsets are relative to the whole file.
  *
- * An edit that straddles the window is handled by what it does. A replacement —
- * a link becoming a path — is dropped, because half of one is broken syntax. A
- * deletion is clipped to what is visible and still applied: the frontmatter
- * edit always starts at offset 0, so dropping it meant that selecting from
- * inside the frontmatter block leaked the rest of it into the prompt.
+ * An edit that straddles the window is clipped to what is visible rather than
+ * dropped. The frontmatter edit always starts at offset 0, so dropping it meant
+ * selecting from inside the block leaked the rest of it; a link to an excluded
+ * note replaced with `[excluded]` was dropped the same way, printing the
+ * filename that placeholder exists to hide.
  *
  * @param edits - Edits with offsets relative to the full note.
  * @param start - Selection start offset in the full note.
@@ -122,13 +160,11 @@ export function rebaseEdits(edits: readonly Edit[], start: number, end: number):
   for (const edit of edits) {
     if (edit.end <= start || edit.start >= end) continue;
 
-    const whollyInside = edit.start >= start && edit.end <= end;
-    // A clipped deletion still deletes what is visible, and a clipped redaction
-    // still redacts it. A clipped link rewrite would be broken syntax.
-    const clippable = edit.replacement === '' || (edit.priority ?? 0) > 0;
-
-    if (!whollyInside && !clippable) continue;
-
+    // Clipped, never dropped. Dropping a straddling edit leaves its text in
+    // the slice — and for a link pointing at an excluded note, that text is the
+    // filename `nameExcluded` exists to withhold. A clipped rewrite emits its
+    // replacement over the visible fragment, which is a tidier outcome than
+    // half a wikilink anyway.
     rebased.push({
       ...edit,
       start: Math.max(edit.start, start) - start,

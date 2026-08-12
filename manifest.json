@@ -1,7 +1,7 @@
 {
   "id": "copy-as-prompt",
   "name": "Copy as Prompt",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "minAppVersion": "1.7.2",
   "description": "Copy notes as prompts, with wikilinks resolved to @paths a coding agent can open.",
   "author": "Steve Kinney",

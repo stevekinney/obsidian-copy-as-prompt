@@ -6,6 +6,7 @@ import {
   type App,
   type CachedMetadata,
   type ReferenceCache,
+  type TFolder,
 } from 'obsidian';
 
 import { homeDirectory } from './desktop.js';
@@ -71,6 +72,16 @@ export function isFileExcluded(app: App, file: TFile, rules: ExclusionRules): bo
   const tags = cache ? (getAllTags(cache) ?? []) : [];
 
   return isExcluded({ path: file.path, tags }, rules);
+}
+
+/**
+ * Whether exclusion rules withhold this folder.
+ *
+ * A folder carries no tags of its own, so only the folder rules apply — a
+ * `#tag` exclusion has nothing on a folder to match against.
+ */
+export function isFolderExcluded(folder: TFolder, rules: ExclusionRules): boolean {
+  return isExcluded({ path: folder.path, tags: [] }, rules);
 }
 
 /**

@@ -191,26 +191,26 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
     // saying "every selected note is excluded" is a label that lies.
     const notes = this.copier.allowedNotes(collectNotes(files));
 
-    if (notes.length === 0) return;
+    if (notes.length > 0) {
+      // "Copy as prompt" for one note; "Copy 12 notes as prompt" for a set, so
+      // the scale of what you are about to copy is visible before you click.
+      const title = notes.length === 1 ? 'Copy as prompt' : `Copy ${notes.length} notes as prompt`;
 
-    // "Copy as prompt" for one note; "Copy 12 notes as prompt" for a set, so the
-    // scale of what you are about to copy is visible before you click.
-    const title = notes.length === 1 ? 'Copy as prompt' : `Copy ${notes.length} notes as prompt`;
+      this.addItem(menu, title, () => this.copyNotes(notes));
+    }
 
-    this.addItem(menu, title, () => this.copyNotes(notes));
+    // An `@` reference points at one path, so this only makes sense when the
+    // selection itself is a single note or a single folder — a multi-item
+    // selection has no one path to point at, and a folder's contents don't
+    // stand in for the folder itself.
+    const referenceable = singleReferenceable(files);
 
-    // An `@` reference is to one file, so — like embedded images below — this
-    // only makes sense for a single-note selection.
-    if (notes.length === 1) {
-      const [note] = notes;
-
-      if (note) {
-        this.addItem(
-          menu,
-          'Copy as prompt reference',
-          () => void this.copier.attempt(() => this.copier.copyPath(note)),
-        );
-      }
+    if (referenceable) {
+      this.addItem(
+        menu,
+        'Copy as prompt reference',
+        () => void this.copier.attempt(() => this.copier.copyPath(referenceable)),
+      );
     }
 
     // Embedded images are gathered per note, so the entry only makes sense for
@@ -268,6 +268,20 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
   private supported(): boolean {
     return this.copier.canUsePaths();
   }
+}
+
+/**
+ * The single note or folder a selection can be pointed at with an `@`
+ * reference, or null when the selection doesn't reduce to exactly one.
+ */
+function singleReferenceable(files: readonly TAbstractFile[]): TFile | TFolder | null {
+  if (files.length !== 1) return null;
+
+  const [target] = files;
+
+  if (target instanceof TFile) return target.extension === 'md' ? target : null;
+
+  return target instanceof TFolder ? target : null;
 }
 
 /** Flatten a selection of files and folders into the Markdown notes inside it. */

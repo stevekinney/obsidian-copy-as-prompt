@@ -1,4 +1,4 @@
-import { Notice, TFile, type App, type Editor, type MarkdownFileInfo } from 'obsidian';
+import { Notice, TFile, TFolder, type App, type Editor, type MarkdownFileInfo } from 'obsidian';
 
 import { writeFiles, writeImage, writeText, type FileClipboardResult } from './clipboard.js';
 import { mapLimited } from './concurrency.js';
@@ -14,6 +14,7 @@ import { render, type RenderableNote } from './render.js';
 import type { PluginSettings } from './settings.js';
 import {
   isFileExcluded,
+  isFolderExcluded,
   resolveNote,
   resolveRelated,
   vaultContext,
@@ -121,13 +122,13 @@ export class PromptCopier {
     await this.deliver([{ ...note, body: sliceBody(note.body, from, to) }]);
   }
 
-  /** Copy the note's `@path` and nothing else. */
-  async copyPath(file: TFile): Promise<void> {
+  /** Copy a note's or folder's `@path` and nothing else. */
+  async copyPath(target: TFile | TFolder): Promise<void> {
     const options = this.resolveOptions();
 
-    if (!options || this.refuse(file, options.exclusions)) return;
+    if (!options || this.refuse(target, options.exclusions)) return;
 
-    const path = reference(displayPath(file.path, options.context, options.pathStyle));
+    const path = reference(displayPath(target.path, options.context, options.pathStyle));
     // Every other command ends up in render(), which re-applies redaction to the
     // finished prompt. This one emits a path directly, so a pattern matching a
     // client or codename was applied on four commands and silently not the fifth.
@@ -256,7 +257,7 @@ export class PromptCopier {
   }
 
   /**
-   * Whether this file is withheld, telling the user when it is.
+   * Whether this note or folder is withheld, telling the user when it is.
    *
    * Every entry point has to ask. The rules are the plugin's only privacy
    * guarantee, and one that holds on some paths and not others is worse than
@@ -265,10 +266,15 @@ export class PromptCopier {
    * A path is withheld too: a filename can be the sensitive part, which is the
    * whole reason excluded notes are unnamed by default.
    */
-  private refuse(file: TFile, rules: ExclusionRules): boolean {
-    if (!isFileExcluded(this.app, file, rules)) return false;
+  private refuse(target: TFile | TFolder, rules: ExclusionRules): boolean {
+    const excluded =
+      target instanceof TFolder
+        ? isFolderExcluded(target, rules)
+        : isFileExcluded(this.app, target, rules);
 
-    new Notice('That note is excluded by your rules');
+    if (!excluded) return false;
+
+    new Notice(`That ${target instanceof TFolder ? 'folder' : 'note'} is excluded by your rules`);
 
     return true;
   }

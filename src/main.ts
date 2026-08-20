@@ -17,6 +17,7 @@ import {
   type SettingsHost,
 } from './settings.js';
 import { CopyAsPromptSettingTab } from './settings-tab.js';
+import { SkillPanelController } from './skill-panel.js';
 
 /** Groups this plugin's entries together on a context menu. */
 const MENU_SECTION = 'copy-as-prompt';
@@ -36,15 +37,21 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
   override settings: PluginSettings = DEFAULT_SETTINGS;
 
   private copier!: PromptCopier;
+  private skillPanel!: SkillPanelController;
 
   override async onload(): Promise<void> {
     await this.loadSettings();
 
     this.copier = new PromptCopier(this.app, () => this.settings);
+    this.skillPanel = new SkillPanelController(this);
 
+    this.skillPanel.register();
     this.registerCommands();
     this.registerMenus();
     this.addSettingTab(new CopyAsPromptSettingTab(this));
+
+    // Deferred so startup, which runs for every enabled plugin, stays cheap.
+    this.app.workspace.onLayoutReady(() => this.skillPanel.registerWorkspaceEvents());
   }
 
   /** Load settings from `data.json`, falling back to defaults per field. */
@@ -213,19 +220,26 @@ export default class CopyAsPromptPlugin extends Plugin implements SettingsHost {
       );
     }
 
-    // Embedded images are gathered per note, so the entry only makes sense for
-    // a single file — a multi-note selection keeps just the text copy above.
-    if (notes.length === 1 && this.settings.attachImages) {
-      const [note] = notes;
+    this.addSingleNoteItems(menu, notes.length === 1 ? notes[0] : undefined);
+  }
 
-      if (note) {
-        this.addItem(
-          menu,
-          'Copy embedded images',
-          () => void this.copier.attempt(() => this.copier.copyEmbeddedImages(note)),
-        );
-      }
+  /**
+   * Entries that only make sense for exactly one selected note: embedded
+   * images are gathered per note, and the skill entries only apply to a
+   * single note already marked as a skill.
+   */
+  private addSingleNoteItems(menu: Menu, note: TFile | undefined): void {
+    if (!note) return;
+
+    if (this.settings.attachImages) {
+      this.addItem(
+        menu,
+        'Copy embedded images',
+        () => void this.copier.attempt(() => this.copier.copyEmbeddedImages(note)),
+      );
     }
+
+    for (const { title, run } of this.skillPanel.menuItems(note)) this.addItem(menu, title, run);
   }
 
   /**

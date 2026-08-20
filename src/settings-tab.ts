@@ -16,6 +16,7 @@ import {
   renderPromptSettings,
 } from './settings-content.js';
 import type { SettingsSection } from './settings-shared.js';
+import { renderSkillSettings } from './settings-skills.js';
 
 const LIST_ROWS = 3;
 
@@ -149,6 +150,7 @@ export class CopyAsPromptSettingTab extends PluginSettingTab {
     renderPrivacySettings(section);
     renderCleanupSettings(section);
     renderFileSettings(section);
+    renderSkillSettings(section);
     renderBehaviorSettings(section);
     renderAdvancedSettings(section);
 

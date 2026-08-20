@@ -20,10 +20,20 @@ coveragePathIgnorePatterns = [
   "src/settings-tab.ts",
   "src/settings-content.ts",
   "src/settings-behavior.ts",
+  "src/settings-skills.ts",
   "src/confirm-modal.ts",
   "src/preview-modal.ts",
   "src/vault.ts",
   "src/clipboard.ts",
   "src/desktop.ts",
+  # Deliberate exceptions to "keep real logic out of the impure modules": both
+  # import `obsidian` and cannot be exercised without mocking the whole API
+  # surface. Everything a mock could meaningfully check instead lives in the
+  # pure modules above — skill-fields, skill-frontmatter, skill-validation,
+  # and skill-file, all held at 100%. A branch growing here is the signal to
+  # move it into one of those instead of adding to this list further.
+  "src/skill-view.ts",
+  "src/skill-export.ts",
+  "src/skill-panel.ts",
 ]
 coverageThreshold = { line = 1.0, function = 1.0, statement = 1.0 }

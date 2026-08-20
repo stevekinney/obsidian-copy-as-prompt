@@ -64,6 +64,65 @@ export function homeDirectory(): string {
   }
 }
 
+/** The subset of `node:fs/promises` skill export needs. */
+type FsPromises = {
+  mkdir(path: string, options: { recursive: true }): Promise<string | undefined>;
+  writeFile(path: string, data: string, encoding: 'utf8'): Promise<void>;
+  access(path: string): Promise<void>;
+};
+
+function isFsPromises(value: unknown): value is FsPromises {
+  return (
+    hasFunction(value, 'mkdir') && hasFunction(value, 'writeFile') && hasFunction(value, 'access')
+  );
+}
+
+function fsPromises(): FsPromises | null {
+  return load('node:fs/promises', isFsPromises);
+}
+
+/**
+ * Write a file to an absolute path outside the vault, creating its parent
+ * directory first.
+ *
+ * Exporting a skill writes to a folder the user configured, not the vault —
+ * `vault.process()` and friends only reach paths the Vault API knows about.
+ *
+ * @returns Whether the write succeeded.
+ */
+export async function writeFileEnsuringDirectory(path: string, contents: string): Promise<boolean> {
+  const fs = fsPromises();
+
+  if (!fs) return false;
+
+  try {
+    const separator = path.lastIndexOf('/');
+    const directory = separator > 0 ? path.slice(0, separator) : path;
+
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(path, contents, 'utf8');
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a file already exists at an absolute path outside the vault. */
+export async function fileExistsOnDisk(path: string): Promise<boolean> {
+  const fs = fsPromises();
+
+  if (!fs) return false;
+
+  try {
+    await fs.access(path);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The subset of Electron's clipboard this plugin uses. */
 export type ElectronClipboard = {
   writeBuffer(format: string, buffer: Uint8Array): void;

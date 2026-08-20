@@ -50,6 +50,10 @@ export type PluginSettings = {
   pathPrefix: string;
   /** Whether the "Copy embedded images" command is offered at all. */
   attachImages: boolean;
+  /** Whether the skill frontmatter panel auto-opens for a note with `skill: true`. */
+  skillPanel: boolean;
+  /** Absolute path to the folder that holds exported skill directories. Empty disables export. */
+  skillExportFolder: string;
 };
 
 /** When the review modal appears. */
@@ -77,6 +81,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   nameExcluded: false,
   pathPrefix: '',
   attachImages: true,
+  skillPanel: true,
+  skillExportFolder: '',
 };
 
 /**
@@ -183,6 +189,8 @@ export function parseSettings(source: unknown): PluginSettings {
     nameExcluded: boolean('nameExcluded'),
     pathPrefix: text('pathPrefix'),
     attachImages: boolean('attachImages'),
+    skillPanel: boolean('skillPanel'),
+    skillExportFolder: text('skillExportFolder'),
   };
 }
 

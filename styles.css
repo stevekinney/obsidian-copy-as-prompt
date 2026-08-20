@@ -48,3 +48,9 @@
   font-size: var(--font-ui-small);
   margin-block: 0 var(--size-4-4);
 }
+
+.copy-as-prompt-skill-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  margin-block-start: var(--size-4-1);
+}

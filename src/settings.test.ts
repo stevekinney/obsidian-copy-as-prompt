@@ -99,4 +99,26 @@ describe('parseSettings migration and new fields', () => {
   it('keeps attachImages turned off once a user disables it', () => {
     expect(parseSettings({ attachImages: false }).attachImages).toBe(false);
   });
+
+  it('defaults to auto-opening the skill panel', () => {
+    expect(parseSettings({}).skillPanel).toBe(true);
+  });
+
+  it('keeps the skill panel turned off once a user disables it', () => {
+    expect(parseSettings({ skillPanel: false }).skillPanel).toBe(false);
+  });
+
+  it('recovers the skill panel default when the stored value is the wrong type', () => {
+    expect(parseSettings({ skillPanel: 'no' }).skillPanel).toBe(DEFAULT_SETTINGS.skillPanel);
+  });
+
+  it('defaults the skill export folder to empty, which disables export', () => {
+    expect(parseSettings({}).skillExportFolder).toBe('');
+  });
+
+  it('keeps a configured skill export folder', () => {
+    expect(parseSettings({ skillExportFolder: '/Users/steve/skills' }).skillExportFolder).toBe(
+      '/Users/steve/skills',
+    );
+  });
 });

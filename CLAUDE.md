@@ -81,7 +81,7 @@ Frontmatter _links_ are skipped deliberately: `FrontmatterLinkCache` extends `Re
 
 ### No Bun or Node APIs in `src/`
 
-The template this repo grew from allowed Bun APIs in `scripts/` but not `src/`. That rule is stricter here: `src/` may use neither. A `Bun.file` or a `node:fs` import in the plugin bundle is a plugin that crashes on iOS and Android. `manifest.json` sets `isDesktopOnly: false`, which is a promise about this. Bun APIs remain correct and preferred in `scripts/` and tests.
+The template this repo grew from allowed Bun APIs in `scripts/` but not `src/`. That rule is stricter here: `src/` may use neither. `manifest.json` sets `isDesktopOnly: true` — every command already gates on a filesystem path mobile doesn't have, so there is no point pretending otherwise — but Bun's APIs still don't exist inside Obsidian's Electron renderer on any platform, desktop included. Bun APIs remain correct and preferred in `scripts/` and tests.
 
 Node and Electron _are_ reachable on desktop, through `src/desktop.ts` and nothing else. It goes via the global `require` Obsidian exposes, looked up lazily behind `Platform.isDesktopApp`. A static `import { clipboard } from 'electron'` would become a top-level `require` in the bundle and take the plugin down on mobile before any guard could run — so the bundler must never see one. Verify with `grep 'require("electron")' main.js`, which should find nothing.
 

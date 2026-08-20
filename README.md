@@ -47,6 +47,12 @@ Paths need a filesystem location, so this is desktop-only in practice; the comma
 
 **Copy embedded images** is a separate command rather than something the note copy does automatically: the clipboard holds one payload at a time, so putting images on it would silently replace the `@` paths you just copied rather than joining them. On macOS every `![[image.png]]` a note embeds attaches at once, as files; elsewhere — and if that pasteboard write ever fails — they copy one at a time instead, and running the command again walks the rest of the set. Turn it off under **Offer to copy embedded images** in settings if you'd rather the command and menu entry not appear at all.
 
+### Skill notes
+
+A note whose frontmatter has `skill: true` is a skill: a note meant to be exported as an [Agent Skill](https://agentskills.io) — the six frontmatter fields the open standard defines, plus the fourteen Claude Code adds. Opening one reveals a panel in the right sidebar for editing that frontmatter directly — dropdowns for the enumerated fields, one section for fields portable everywhere and a second for the Claude Code-only ones — instead of hand-editing YAML. Turn off **Open the skill panel automatically** in settings if you'd rather open it yourself, from the title-bar icon it adds to a skill note or from **Open skill panel** in the command palette. **Mark note as a skill** adds the frontmatter to a note that doesn't have it yet.
+
+**Copy note as skill** and **Export note as skill** turn the note into a `SKILL.md`: the body rendered through the same pipeline as every other copy — wikilinks resolved to `@` paths, comments and Dataview/Templater stripped per your settings — with the skill frontmatter in place of the note's own. Export writes `<folder>/<name>/SKILL.md` under the **Skill export folder** configured in settings, which is empty (and export disabled) until you set it. Both commands only appear for a note already marked as a skill, and refuse to run if the frontmatter fails validation — a missing name or description, for instance — matching the checks [skillset](https://github.com/stevekinney/skillset) applies.
+
 ## Installing
 
 Until this is in the community directory, install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat), which installs and auto-updates plugins straight from a GitHub repository:
